@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.models import User
 from app.core.auth import verify_password, get_password_hash, create_access_token
+from app.core.deps import get_current_user
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -21,6 +22,11 @@ class Token(BaseModel):
 class UserCreate(BaseModel):
     username: str
     password: str
+
+class UserOut(BaseModel):
+    username: str
+    role: str
+    is_active: bool
 
 @router.post("/register", response_model=Token)
 def register(user: UserCreate, db: Session = Depends(get_db)):
@@ -48,3 +54,11 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         )
     access_token = create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.get("/me", response_model=UserOut)
+def me(current_user: User = Depends(get_current_user)):
+    return UserOut(
+        username=current_user.username,
+        role=current_user.role,
+        is_active=current_user.is_active,
+    )
