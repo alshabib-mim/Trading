@@ -1,5 +1,5 @@
 import yfinance as yf
-import pandas_ta as ta
+import pandas_ta_classic as ta
 import pandas as pd
 from sqlalchemy.orm import Session
 from app.models.models import TechnicalSignal

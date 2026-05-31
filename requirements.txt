@@ -9,9 +9,8 @@ passlib[argon2]
 python-multipart
 apscheduler
 httpx
-numpy<2
 pandas
-pandas-ta @ git+https://github.com/twopirllc/pandas-ta.git@0.3.14b0
+pandas-ta-classic
 yfinance
 ccxt
 anthropic
