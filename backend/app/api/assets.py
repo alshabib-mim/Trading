@@ -14,7 +14,7 @@ from app.core.deps import require_owner
 
 router = APIRouter()
 
-VALID_TYPES = {"stock", "crypto"}
+VALID_TYPES = {"stock", "crypto", "forex"}
 
 
 class AssetCreate(BaseModel):
@@ -49,9 +49,11 @@ def add_asset(payload: AssetCreate, db: Session = Depends(get_db), _: User = Dep
     if not symbol:
         raise HTTPException(status_code=400, detail="Symbol required")
     if payload.asset_type not in VALID_TYPES:
-        raise HTTPException(status_code=400, detail="asset_type must be 'stock' or 'crypto'")
+        raise HTTPException(status_code=400, detail="asset_type must be 'stock', 'crypto' or 'forex'")
     if payload.asset_type == "crypto" and not symbol.endswith("-USD"):
         raise HTTPException(status_code=400, detail="Crypto symbols must look like BASE-USD (e.g. SOL-USD)")
+    if payload.asset_type == "forex" and "-" not in symbol:
+        raise HTTPException(status_code=400, detail="Forex symbols must look like BASE-QUOTE (e.g. EUR-USD, USD-JPY, XAU-USD)")
     if db.query(AssetConfig).filter(AssetConfig.symbol == symbol).first():
         raise HTTPException(status_code=400, detail="Asset already exists")
     row = AssetConfig(symbol=symbol, asset_type=payload.asset_type, enabled=payload.enabled)

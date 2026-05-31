@@ -19,7 +19,7 @@ from app.models.models import (
     RiskConfig, RiskState, ExecutedTrade, TradingSignal, SourceConfig,
 )
 from app.services.market_data import get_ohlcv
-from app.services import assets
+from app.services import assets, twelvedata
 
 DEFAULTS = {
     "account": {"starting_capital": 100000.0, "risk_per_trade_pct": 1.0, "max_position_pct": 5.0},
@@ -67,11 +67,27 @@ def _account(cfg_map):
     return p["starting_capital"], p["risk_per_trade_pct"], p["max_position_pct"]
 
 
+def _stop_pct(symbol, asset_type, sl_params):
+    """Resolve the stop % for a symbol: per-symbol (e.g. gold) -> per-type
+    (e.g. forex) -> default. All UI-tunable in the stop_loss config."""
+    by_symbol = sl_params.get("by_symbol") or {}
+    if symbol in by_symbol:
+        return float(by_symbol[symbol])
+    by_type = sl_params.get("by_type") or {}
+    if asset_type in by_type:
+        return float(by_type[asset_type])
+    return float(sl_params.get("pct", 6.0))
+
+
 def _latest_price(asset, db):
     tcfg = db.query(SourceConfig).filter(SourceConfig.source == "technical").first()
     exch = tcfg.provider if tcfg else None
+    atype = assets.type_of(asset, db)
     try:
-        data = get_ohlcv(asset, asset_type=assets.type_of(asset, db), exchange=exch, timeframe="1h", limit=3)
+        data = get_ohlcv(
+            asset, asset_type=atype, exchange=exch, timeframe="1h", limit=3,
+            api_key=twelvedata.get_key(db) if atype == "forex" else None,
+        )
     except Exception:
         return None
     if data is None or data.empty:
@@ -204,7 +220,7 @@ def open_new_positions(db, cfg_map, capital, halted_reasons, price_fn=None):
 
         sl_en, sl_p = resolve(cfg_map, "stop_loss")
         tp_en, tp_p = resolve(cfg_map, "take_profit")
-        stop_pct = sl_p["pct"] / 100.0
+        stop_pct = _stop_pct(sig.asset, assets.type_of(sig.asset, db), sl_p) / 100.0
         rr = tp_p["rr"]
         risk_amount = risk_pct / 100.0 * capital
         cap_notional = max_pos_pct / 100.0 * capital
@@ -244,6 +260,16 @@ def run_risk_engine(db: Session, price_fn=None):
     cfg_map = _config_map(db)
     capital, _, _ = _account(cfg_map)
     state = _get_state(db)
+
+    # Per-tick price cache: fetch each symbol's price once (manage + equity +
+    # open all reuse it). Important for the Twelve Data free-tier forex budget.
+    if price_fn is None:
+        _cache = {}
+
+        def price_fn(asset):
+            if asset not in _cache:
+                _cache[asset] = _latest_price(asset, db)
+            return _cache[asset]
 
     closed = manage_open_positions(db, cfg_map, price_fn=price_fn)
     equity, realized, unreal = compute_equity(db, capital, price_fn=price_fn)

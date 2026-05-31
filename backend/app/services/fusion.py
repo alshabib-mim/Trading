@@ -158,12 +158,23 @@ def fuse_asset(asset, db: Session, now=None):
     tech = _technical_reading(asset, db, _cfg(db, "technical"), now)
     sent = _sentiment_reading(asset, db, _cfg(db, "sentiment"), now)
     inst = _institutional_reading(asset, db, _cfg(db, "institutional"), now)
-    if assets.type_of(asset, db) == "crypto":
+    atype = assets.type_of(asset, db)
+    if atype == "crypto":
         direction_src = _whale_reading(asset, db, _cfg(db, "whale"), now)
         whale_is_dir = True
-    else:
+        dir_is_tech = False
+    elif atype == "forex":
+        # Forex/gold is technical-only: technical IS the direction (no separate gate).
+        direction_src = (
+            {"direction": tech["direction"], "conviction": tech["strength"]}
+            if tech and tech["direction"] != "none" else None
+        )
+        whale_is_dir = False
+        dir_is_tech = True
+    else:  # stock
         direction_src = _insider_reading(asset, db, _cfg(db, "insider"), now)
         whale_is_dir = False
+        dir_is_tech = False
 
     fcfg = _cfg(db, "fusion")
     fopts = (fcfg.options if fcfg and fcfg.options else None) or DEFAULTS
@@ -177,22 +188,29 @@ def fuse_asset(asset, db: Session, now=None):
     def agrees(r):
         return bool(r and direction != "none" and r["direction"] == direction)
 
-    technical_conf = agrees(tech)
     sentiment_conf = agrees(sent)
     institutional_conf = agrees(inst)
     whale_conf = bool(whale_is_dir and direction != "none")
-
-    # Confidence: direction conviction gated by timing, nudged by confirm/support.
-    timing_strength = tech["strength"] if technical_conf else 0.0
     direction_conviction = direction_src["conviction"] if direction_src else 0.0
     # Raw direction-source strength persisted for the UI (None when no source).
     dconv = direction_src["conviction"] if direction_src else None
-    c = w_dir * direction_conviction * timing_strength
-    if sent:
-        c += w_sent * sent["conviction"] * (1 if sentiment_conf else -1)
-    if institutional_conf:
-        c += w_sup * inst["conviction"]
-    confidence = round(max(0.0, min(1.0, c)), 4)
+
+    if dir_is_tech:
+        # Forex/gold: technical IS the direction. Confidence = technical strength
+        # itself (no w_dir cap — there are no confirmations to reserve room for).
+        technical_conf = direction != "none"
+        timing_strength = direction_conviction
+        confidence = round(direction_conviction, 4)
+    else:
+        # Stock/crypto: technical is a separate timing gate; nudged by confirm/support.
+        technical_conf = agrees(tech)
+        timing_strength = tech["strength"] if technical_conf else 0.0
+        c = w_dir * direction_conviction * timing_strength
+        if sent:
+            c += w_sent * sent["conviction"] * (1 if sentiment_conf else -1)
+        if institutional_conf:
+            c += w_sup * inst["conviction"]
+        confidence = round(max(0.0, min(1.0, c)), 4)
 
     # Hard gate: direction present AND technical agrees AND confidence clears bar.
     armed = direction != "none" and technical_conf and confidence >= arm_threshold

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.models import TechnicalSignal, SourceConfig
 from app.services.market_data import get_ohlcv
-from app.services import assets
+from app.services import assets, twelvedata
 
 
 def _rsi_signal(last):
@@ -78,12 +78,14 @@ def fetch_and_analyze(ticker: str, db: Session):
     exchange = cfg.provider if cfg is not None else None
     options = cfg.options if cfg is not None and cfg.options else {}
 
+    atype = assets.type_of(ticker, db)
     data = get_ohlcv(
         ticker,
-        asset_type=assets.type_of(ticker, db),
+        asset_type=atype,
         exchange=exchange,
         timeframe=options.get("timeframe", "1h"),
         limit=options.get("limit", 300),
+        api_key=twelvedata.get_key(db) if atype == "forex" else None,
     )
     if data is None or data.empty:
         return []

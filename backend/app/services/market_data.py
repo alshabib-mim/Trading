@@ -45,15 +45,20 @@ def _fetch_stock_ohlcv(asset: str, period: str = "1mo", interval: str = "1h") ->
 
 
 def get_ohlcv(asset: str, asset_type: str = None, exchange: str = None,
-              timeframe: str = "1h", limit: int = 300) -> pd.DataFrame:
-    """OHLCV DataFrame (Open/High/Low/Close/Volume), crypto via ccxt, stocks via yfinance.
+              timeframe: str = "1h", limit: int = 300, api_key: str = None) -> pd.DataFrame:
+    """OHLCV DataFrame (Open/High/Low/Close/Volume): crypto via ccxt, stocks via
+    yfinance, forex/gold via Twelve Data.
 
-    `asset_type` ("stock"|"crypto") selects the source — callers resolve it from
-    asset_config. Falls back to the symbol-suffix heuristic if not provided.
-    For crypto, `exchange` selects the ccxt exchange (falls back to env default).
+    `asset_type` ("stock"|"crypto"|"forex") selects the source — callers resolve
+    it from asset_config. For crypto, `exchange` selects the ccxt exchange. For
+    forex, `api_key` is the Twelve Data key (callers decrypt it from config); if
+    absent, returns empty so nothing is fetched until the key is set.
     """
     if asset_type is None:
         asset_type = "crypto" if is_crypto(asset) else "stock"
     if asset_type == "crypto":
         return _fetch_crypto_ohlcv(asset, exchange or DEFAULT_EXCHANGE, timeframe=timeframe, limit=limit)
+    if asset_type == "forex":
+        from app.services.twelvedata import fetch_ohlcv
+        return fetch_ohlcv(asset, api_key, timeframe=timeframe, outputsize=limit)
     return _fetch_stock_ohlcv(asset)

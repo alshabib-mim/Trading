@@ -16,7 +16,7 @@ from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.models.models import User, SourceConfig
 from app.services.market_data import get_ohlcv
-from app.services import assets
+from app.services import assets, twelvedata
 
 router = APIRouter()
 
@@ -74,7 +74,10 @@ def get_chart(
     crypto = asset_type == "crypto"
 
     try:
-        data = get_ohlcv(asset, asset_type=asset_type, exchange=exchange, timeframe=timeframe, limit=limit)
+        data = get_ohlcv(
+            asset, asset_type=asset_type, exchange=exchange, timeframe=timeframe, limit=limit,
+            api_key=twelvedata.get_key(db) if asset_type == "forex" else None,
+        )
     except Exception as exc:  # noqa: BLE001 — surface upstream fetch errors cleanly
         raise HTTPException(status_code=502, detail=f"Market data error: {exc}")
 
@@ -124,7 +127,7 @@ def get_chart(
     return {
         "asset": asset,
         "timeframe": timeframe,
-        "exchange": exchange if crypto else "yfinance",
+        "exchange": exchange if crypto else ("twelvedata" if asset_type == "forex" else "yfinance"),
         "is_crypto": crypto,
         "candles": candles,
         "indicators": indicators,
