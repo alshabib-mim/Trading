@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
 const Dashboard = () => {
   const [signals, setSignals] = useState([]);
   const [trades, setTrades] = useState([]);
@@ -8,9 +10,9 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const signalsRes = await axios.get('http://localhost:8000/api/signals/');
+        const signalsRes = await axios.get(`${API_URL}/signals/`);
         setSignals(signalsRes.data);
-        const tradesRes = await axios.get('http://localhost:8000/api/trades/');
+        const tradesRes = await axios.get(`${API_URL}/trades/`);
         setTrades(tradesRes.data);
       } catch (err) {
         console.error("Error fetching data", err);

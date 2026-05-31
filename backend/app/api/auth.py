@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -9,6 +10,10 @@ from pydantic import BaseModel
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
 
+# Open registration lets anyone create an account. Keep enabled for the first
+# deploy to seed the owner account, then set ALLOW_OPEN_REGISTRATION=false.
+ALLOW_OPEN_REGISTRATION = os.getenv("ALLOW_OPEN_REGISTRATION", "true").lower() == "true"
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -19,6 +24,8 @@ class UserCreate(BaseModel):
 
 @router.post("/register", response_model=Token)
 def register(user: UserCreate, db: Session = Depends(get_db)):
+    if not ALLOW_OPEN_REGISTRATION:
+        raise HTTPException(status_code=403, detail="Open registration is disabled")
     db_user = db.query(User).filter(User.username == user.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
