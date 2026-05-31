@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 
 const ASSETS = ['AAPL', 'TSLA', 'BTC-USD', 'ETH-USD'];
@@ -105,6 +105,27 @@ export default function Dashboard() {
     return () => { alive = false; clearInterval(t); };
   }, []);
 
+  const loadTrades = useCallback(async () => {
+    try {
+      const r = await api.get('/trades/');
+      setTrades(r.data);
+    } catch { /* ignore */ }
+  }, []);
+
+  const toggleProtect = async (trade, key) => {
+    const cur = trade.overrides || {};
+    const isOff = cur[key] && cur[key].enabled === false;
+    const next = { ...cur };
+    if (isOff) delete next[key];
+    else next[key] = { enabled: false };
+    try {
+      await api.put(`/trades/${trade.id}`, { overrides: next });
+      loadTrades();
+    } catch (e) {
+      setErr(e.response?.data?.detail || 'Override failed (owner only)');
+    }
+  };
+
   // Latest signal per asset (list is newest-first → first hit wins).
   const latest = {};
   for (const s of signals) {
@@ -132,28 +153,51 @@ export default function Dashboard() {
       </section>
 
       <section className="card">
-        <h2>Executed Trades</h2>
-        <table>
+        <h2>Paper positions</h2>
+        <p className="section-sub">
+          Auto-opened when a signal arms. Stop/target are the global defaults; toggle a protection
+          off <b>for this trade</b> with the SL/TP chips on open positions (owner only).
+        </p>
+        <table className="positions">
           <thead>
             <tr>
-              <th>Asset</th>
-              <th>Entry</th>
-              <th>Size</th>
-              <th>PnL</th>
+              <th>Asset</th><th>Side</th><th>Entry</th><th>Stop</th><th>Target</th>
+              <th>Exit</th><th>P&L</th><th>Status</th><th>Protect</th>
             </tr>
           </thead>
           <tbody>
-            {trades.map((t) => (
-              <tr key={t.id}>
-                <td>{t.asset}</td>
-                <td>${t.entry_price.toFixed(2)}</td>
-                <td>{t.size}</td>
-                <td className="pnl">${t.pnl?.toFixed(2) || '0.00'}</td>
-              </tr>
-            ))}
+            {trades.map((t) => {
+              const slOff = t.overrides?.stop_loss?.enabled === false;
+              const tpOff = t.overrides?.take_profit?.enabled === false;
+              const open = t.status === 'open';
+              return (
+                <tr key={t.id}>
+                  <td>{t.asset}</td>
+                  <td className={t.side === 'short' ? 'neg' : 'pos'}>{t.side || '—'}</td>
+                  <td>{t.entry_price != null ? t.entry_price.toFixed(2) : '—'}</td>
+                  <td>{t.stop_loss != null ? t.stop_loss.toFixed(2) : '—'}</td>
+                  <td>{t.take_profit != null ? t.take_profit.toFixed(2) : '—'}</td>
+                  <td>{t.exit_price != null ? t.exit_price.toFixed(2) : '—'}</td>
+                  <td className={(t.pnl ?? 0) >= 0 ? 'pos' : 'neg'}>{t.pnl != null ? `$${t.pnl.toFixed(2)}` : '—'}</td>
+                  <td>
+                    {open
+                      ? <span className="badge st-armed">open</span>
+                      : <span className="badge">{t.close_reason || 'closed'}</span>}
+                  </td>
+                  <td>
+                    {open ? (
+                      <span className="protect">
+                        <button className={`mini ${slOff ? '' : 'on'}`} onClick={() => toggleProtect(t, 'stop_loss')} title="toggle stop-loss for this trade">SL</button>
+                        <button className={`mini ${tpOff ? '' : 'on'}`} onClick={() => toggleProtect(t, 'take_profit')} title="toggle take-profit for this trade">TP</button>
+                      </span>
+                    ) : '—'}
+                  </td>
+                </tr>
+              );
+            })}
             {trades.length === 0 && (
               <tr>
-                <td colSpan="4" className="empty">No trades yet</td>
+                <td colSpan="9" className="empty">No paper positions yet — opens when a signal arms (pending).</td>
               </tr>
             )}
           </tbody>

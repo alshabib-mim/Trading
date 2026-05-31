@@ -284,3 +284,34 @@ button:disabled { opacity: 0.6; cursor: default; }
   line-height: 1.5;
   color: var(--muted);
 }
+
+/* ---- risk page ---- */
+.risk-state { margin-bottom: 1.25rem; }
+.rs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem 1.5rem;
+  margin-bottom: 0.6rem;
+}
+@media (min-width: 760px) { .rs-grid { grid-template-columns: repeat(6, 1fr); } }
+.rs-grid > div { display: flex; flex-direction: column; gap: 0.2rem; }
+.rs-l { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.rs-v { font-size: 1.05rem; font-weight: 700; }
+.rs-v.pos { color: var(--ok); }
+.rs-v.neg { color: var(--err); }
+.rs-reasons { font-size: 0.8rem; color: var(--err); margin-bottom: 0.6rem; }
+.link-btn.danger { color: var(--err); border-color: var(--err); }
+.risk-card .row3 { margin-top: 0.2rem; }
+
+table.positions td, table.positions th { font-size: 0.85rem; white-space: nowrap; }
+.protect { display: inline-flex; gap: 0.3rem; }
+.mini {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: #5b626c;
+  cursor: pointer;
+}
+.mini.on { color: var(--ok); border-color: var(--ok); }
