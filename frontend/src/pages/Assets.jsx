@@ -56,6 +56,7 @@ export default function Assets() {
 
   const stocks = rows.filter((r) => r.asset_type === 'stock');
   const crypto = rows.filter((r) => r.asset_type === 'crypto');
+  const forex = rows.filter((r) => r.asset_type === 'forex');
   const enabledCount = rows.filter((r) => r.enabled).length;
 
   return (
@@ -64,20 +65,22 @@ export default function Assets() {
       <p className="section-sub">
         The tracked symbols, read at runtime — add/remove takes effect on the next scheduler
         tick, no redeploy. Type drives everything: stocks use insider/13F/sentiment, crypto uses
-        whale flow; both use technical. {enabledCount} enabled · {stocks.length} stocks · {crypto.length} crypto.
+        whale flow; forex/gold is technical-only (technical drives direction). {enabledCount} enabled ·
+        {' '}{stocks.length} stocks · {crypto.length} crypto · {forex.length} forex.
       </p>
       {error && <div className="error">{error}</div>}
 
       <form className="card asset-add" onSubmit={add}>
         <input
           type="text"
-          placeholder="Symbol (AAPL or SOL-USD)"
+          placeholder="Symbol (AAPL · SOL-USD · EUR-USD · XAU-USD)"
           value={symbol}
           onChange={(e) => setSymbol(e.target.value)}
         />
         <select value={type} onChange={(e) => setType(e.target.value)}>
           <option value="stock">stock</option>
           <option value="crypto">crypto</option>
+          <option value="forex">forex</option>
         </select>
         <button type="submit" disabled={busy}>{busy ? 'Adding…' : 'Add asset'}</button>
       </form>
