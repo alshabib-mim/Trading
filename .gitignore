@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+uvicorn.log
+npm_dev.log
+test.db
+node_modules/
+dist/
+.vscode/
+.idea/
+backend/migrations/versions/__pycache__/
