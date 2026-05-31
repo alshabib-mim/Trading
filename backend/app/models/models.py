@@ -46,6 +46,21 @@ class WhaleMovement(Base):
     source = Column(String)
     timestamp = Column(DateTime, index=True)
 
+class InsiderTransaction(Base):
+    __tablename__ = "insider_transactions"
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)
+    cik = Column(String)
+    insider_name = Column(String)
+    transaction_code = Column(String)  # P = open-market buy (the bullish signal)
+    shares = Column(Float)
+    price = Column(Float)
+    value = Column(Float)              # shares * price
+    transaction_date = Column(String)  # as-reported YYYY-MM-DD
+    accession = Column(String, index=True)  # EDGAR filing id; used to dedupe re-runs
+    filed_date = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
 class TechnicalSignal(Base):
     __tablename__ = "technical_signals"
     id = Column(Integer, primary_key=True, index=True)
