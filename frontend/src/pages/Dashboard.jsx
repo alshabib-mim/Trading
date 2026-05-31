@@ -1,17 +1,39 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 
-const ASSETS = ['AAPL', 'TSLA', 'BTC-USD', 'ETH-USD'];
-const CRYPTO = new Set(['BTC-USD', 'ETH-USD']);
 const ARM_THRESHOLD = 0.6;
 const REFRESH_MS = 30000;
 
+// Render order + display labels for the asset-type groups.
+const TYPE_ORDER = { stock: 0, crypto: 1, forex: 2 };
+const TYPE_LABEL = { stock: 'Stocks', crypto: 'Crypto', forex: 'Forex / Gold' };
+
+// Confirmation flags shown per row. news_conf is forex-only (null elsewhere → unlit).
 const FLAGS = [
   { key: 'whale_conf', label: 'Whale' },
   { key: 'technical_conf', label: 'Tech' },
   { key: 'sentiment_conf', label: 'Sent' },
   { key: 'institutional_conf', label: '13F' },
+  { key: 'news_conf', label: 'News' },
 ];
+
+function typeOf(sig) {
+  // Fall back to a symbol heuristic only if the API didn't supply a type.
+  if (sig && sig.asset_type) return sig.asset_type;
+  return sig && sig.asset && sig.asset.includes('-') ? 'crypto' : 'stock';
+}
+
+// Which source sets DIRECTION for this asset type (what the dashboard labels).
+function dirSource(type) {
+  if (type === 'crypto') return 'whale flow';
+  if (type === 'forex') return 'technical';
+  return 'insider (Form 4)';
+}
+function convLabel(type) {
+  if (type === 'crypto') return 'whale';
+  if (type === 'forex') return 'technical';
+  return 'insider';
+}
 
 function dirClass(d) {
   return d === 'bullish' ? 'dir-bull' : d === 'bearish' ? 'dir-bear' : 'dir-none';
@@ -25,28 +47,18 @@ function fmtTime(ts) {
   }
 }
 
-function EngineRow({ asset, sig }) {
-  const dirSrc = CRYPTO.has(asset) ? 'whale flow' : 'insider (Form 4)';
-  if (!sig) {
-    return (
-      <div className="engine-row">
-        <div className="er-head">
-          <span className="er-asset">{asset}</span>
-          <span className="muted">no read yet</span>
-        </div>
-      </div>
-    );
-  }
+function EngineRow({ sig }) {
+  const type = typeOf(sig);
   const conf = (sig.confidence_score || 0) * 100;
   const armed = sig.status === 'pending';
   return (
     <div className={`engine-row ${armed ? 'armed' : ''}`}>
       <div className="er-head">
-        <span className="er-asset">{asset}</span>
+        <span className="er-asset">{sig.asset}</span>
         <span className={`badge dir ${dirClass(sig.direction)}`}>{sig.direction || 'none'}</span>
         <span className={`badge status ${armed ? 'st-armed' : 'st-watch'}`}>{sig.status}</span>
         <span className="spacer" />
-        <span className="muted small">dir: {dirSrc}</span>
+        <span className="muted small">dir: {dirSource(type)}</span>
         <span className="muted small">{fmtTime(sig.timestamp)}</span>
       </div>
 
@@ -61,7 +73,7 @@ function EngineRow({ asset, sig }) {
             className={`dir-conv ${dirClass(sig.direction)}`}
             title="raw strength of the direction source (0–1), before the timing gate"
           >
-            {CRYPTO.has(asset) ? 'whale' : 'insider'} {sig.direction_conviction.toFixed(2)}
+            {convLabel(type)} {sig.direction_conviction.toFixed(2)}
           </span>
         )}
       </div>
@@ -86,7 +98,7 @@ function sentDir(score) {
   return { label: 'neutral', cls: 'dir-none' };
 }
 
-function NewsCard({ news }) {
+function NewsCard({ stocks, news }) {
   const [open, setOpen] = useState(null);
   const byAsset = {};
   for (const n of news) byAsset[n.asset] = n;
@@ -96,20 +108,11 @@ function NewsCard({ news }) {
       <h2>News &amp; sentiment</h2>
       <p className="section-sub">
         What the sentiment AI read. Finnhub headlines + Claude’s rationale per stock.
-        Sentiment is confirm-only — it nudges confidence, never sets direction.
+        Sentiment is confirm-only — it nudges confidence, never sets direction. Crypto uses
+        whale flow; forex uses its own macro-news source (not shown here).
       </p>
       <div className="engine-list">
-        {ASSETS.map((a) => {
-          if (CRYPTO.has(a)) {
-            return (
-              <div key={a} className="engine-row">
-                <div className="er-head">
-                  <span className="er-asset">{a}</span>
-                  <span className="muted small">no news coverage — Finnhub is equities-only; crypto direction comes from whale flow</span>
-                </div>
-              </div>
-            );
-          }
+        {stocks.map((a) => {
           const n = byAsset[a];
           if (!n) {
             return (
@@ -145,6 +148,9 @@ function NewsCard({ news }) {
             </div>
           );
         })}
+        {stocks.length === 0 && (
+          <div className="engine-row"><div className="er-head"><span className="muted small">no stocks enabled</span></div></div>
+        )}
       </div>
     </section>
   );
@@ -200,10 +206,27 @@ export default function Dashboard() {
     }
   };
 
-  // Latest signal per asset (list is newest-first → first hit wins).
+  // Latest signal per asset (list is newest-first → first hit wins). This is the
+  // source of truth for what's live — every enabled asset gets a fusion row each
+  // cycle, so the dashboard now shows them ALL, grouped by type.
   const latest = {};
   for (const s of signals) {
     if (!(s.asset in latest)) latest[s.asset] = s;
+  }
+  const rows = Object.values(latest).sort((a, b) => {
+    const ta = TYPE_ORDER[typeOf(a)] ?? 9;
+    const tb = TYPE_ORDER[typeOf(b)] ?? 9;
+    return ta - tb || a.asset.localeCompare(b.asset);
+  });
+  const stocks = rows.filter((s) => typeOf(s) === 'stock').map((s) => s.asset);
+
+  // Group rows by type for sub-headed rendering.
+  const groups = [];
+  let curType = null;
+  for (const s of rows) {
+    const t = typeOf(s);
+    if (t !== curType) { groups.push({ type: t, rows: [] }); curType = t; }
+    groups[groups.length - 1].rows.push(s);
   }
 
   return (
@@ -212,21 +235,26 @@ export default function Dashboard() {
       {err && <div className="error">{err}</div>}
 
       <section className="card">
-        <h2>Engine read — current</h2>
+        <h2>Engine read — current <span className="muted small">({rows.length} assets)</span></h2>
         <p className="section-sub">
           A signal <b>arms</b> (pending) only when there is a direction, technical timing
           agrees, and confidence ≥ {ARM_THRESHOLD * 100}%. Otherwise it’s a <b>watch</b> row —
           the engine sees something but the sources haven’t lined up. Lit flags = sources
-          that agreed with the read direction.
+          that agreed with the read direction. Direction source: stocks = insider, crypto =
+          whale flow, forex/gold = technical.
         </p>
-        <div className="engine-list">
-          {ASSETS.map((a) => (
-            <EngineRow key={a} asset={a} sig={latest[a]} />
-          ))}
-        </div>
+        {rows.length === 0 && <div className="engine-row"><div className="er-head"><span className="muted">no signals yet — the engine hasn’t run a fusion cycle</span></div></div>}
+        {groups.map((g) => (
+          <div key={g.type} className="engine-group">
+            <h3 className="group-head">{TYPE_LABEL[g.type] || g.type} <span className="muted small">({g.rows.length})</span></h3>
+            <div className="engine-list">
+              {g.rows.map((s) => <EngineRow key={s.asset} sig={s} />)}
+            </div>
+          </div>
+        ))}
       </section>
 
-      <NewsCard news={news} />
+      <NewsCard stocks={stocks} news={news} />
 
       <section className="card">
         <h2>Paper positions</h2>

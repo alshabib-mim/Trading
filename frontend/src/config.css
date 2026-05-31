@@ -217,6 +217,16 @@ button:disabled { opacity: 0.6; cursor: default; }
 .section-sub { color: var(--muted); font-size: 0.82rem; line-height: 1.5; margin: 0 0 1rem; }
 .section-sub b { color: var(--text); font-weight: 600; }
 
+.engine-group { margin-top: 0.5rem; }
+.engine-group:first-of-type { margin-top: 0; }
+.group-head {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted, #8a93a6);
+  margin: 0.9rem 0 0.5rem;
+  font-weight: 700;
+}
 .engine-list { display: flex; flex-direction: column; gap: 0.6rem; }
 .engine-row {
   background: var(--panel-2);

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.models.models import TradingSignal, User
+from app.models.models import TradingSignal, AssetConfig, User
 from app.core.deps import get_current_user
 from typing import List, Optional
 from pydantic import BaseModel
@@ -12,6 +12,8 @@ router = APIRouter()
 class TradingSignalSchema(BaseModel):
     id: int
     asset: str
+    asset_type: Optional[str] = None  # stock | crypto | forex — so the UI can render every
+                                      # enabled asset and label its direction source correctly
     direction: Optional[str] = None
     signal_type: Optional[str] = None  # null on watch rows (no armed direction)
     confidence_score: float
@@ -35,9 +37,16 @@ def get_signals(
     current_user: User = Depends(get_current_user),
 ):
     # Newest first; cap the list so accumulating watch rows don't flood the UI.
-    return (
+    # 200 rows comfortably covers the latest row for every enabled asset.
+    rows = (
         db.query(TradingSignal)
         .order_by(TradingSignal.timestamp.desc())
         .limit(200)
         .all()
     )
+    # Attach asset_type from the universe so the dashboard can render all assets
+    # and pick the right direction-source label (insider / whale / technical).
+    type_map = {a.symbol: a.asset_type for a in db.query(AssetConfig).all()}
+    for r in rows:
+        r.asset_type = type_map.get(r.asset)
+    return rows
