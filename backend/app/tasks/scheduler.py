@@ -5,6 +5,7 @@ from app.services.edgar import run_insider, run_13f
 from app.services.whale import run_whale
 from app.services.fusion import run_fusion
 from app.services.risk import run_risk_engine
+from app.services.news import run_sentiment
 
 TICKERS = ["AAPL", "TSLA", "BTC-USD", "ETH-USD"]
 
@@ -47,6 +48,15 @@ def update_institutional_signals():
         db.close()
 
 
+def update_sentiment_signals():
+    # Finnhub headlines -> Claude sentiment. No-op until 'news' (key) + 'sentiment' enabled.
+    db = SessionLocal()
+    try:
+        run_sentiment(TICKERS, db)
+    finally:
+        db.close()
+
+
 def update_fused_signals():
     # Combine the freshest source readings into trading_signals (watch/pending).
     db = SessionLocal()
@@ -71,6 +81,7 @@ def start_scheduler():
     scheduler.add_job(update_insider_signals, 'interval', hours=6)
     scheduler.add_job(update_whale_signals, 'interval', minutes=15)
     scheduler.add_job(update_institutional_signals, 'interval', hours=24)
+    scheduler.add_job(update_sentiment_signals, 'interval', hours=1)
     scheduler.add_job(update_fused_signals, 'interval', minutes=15)
     scheduler.add_job(update_risk_engine, 'interval', minutes=5)
     scheduler.start()
