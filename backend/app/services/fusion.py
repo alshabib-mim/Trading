@@ -185,6 +185,8 @@ def fuse_asset(asset, db: Session, now=None):
     # Confidence: direction conviction gated by timing, nudged by confirm/support.
     timing_strength = tech["strength"] if technical_conf else 0.0
     direction_conviction = direction_src["conviction"] if direction_src else 0.0
+    # Raw direction-source strength persisted for the UI (None when no source).
+    dconv = direction_src["conviction"] if direction_src else None
     c = w_dir * direction_conviction * timing_strength
     if sent:
         c += w_sent * sent["conviction"] * (1 if sentiment_conf else -1)
@@ -221,6 +223,7 @@ def fuse_asset(asset, db: Session, now=None):
         direction=direction,
         signal_type=signal_type,
         confidence_score=confidence,
+        direction_conviction=dconv,
         status=status,
         institutional_conf=institutional_conf,
         whale_conf=whale_conf,

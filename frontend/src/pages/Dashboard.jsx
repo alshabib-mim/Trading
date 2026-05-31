@@ -50,10 +50,20 @@ function EngineRow({ asset, sig }) {
         <span className="muted small">{fmtTime(sig.timestamp)}</span>
       </div>
 
-      <div className="conf-bar" title={`confidence ${conf.toFixed(1)}% · arms at ${ARM_THRESHOLD * 100}%`}>
-        <div className={`conf-fill ${armed ? 'armed' : ''}`} style={{ width: `${Math.min(conf, 100)}%` }} />
-        <div className="conf-thresh" style={{ left: `${ARM_THRESHOLD * 100}%` }} />
-        <span className="conf-val">{conf.toFixed(0)}%</span>
+      <div className="conf-row">
+        <div className="conf-bar" title={`armed-confidence ${conf.toFixed(1)}% · arms at ${ARM_THRESHOLD * 100}%`}>
+          <div className={`conf-fill ${armed ? 'armed' : ''}`} style={{ width: `${Math.min(conf, 100)}%` }} />
+          <div className="conf-thresh" style={{ left: `${ARM_THRESHOLD * 100}%` }} />
+          <span className="conf-val">{conf.toFixed(0)}%</span>
+        </div>
+        {sig.direction !== 'none' && sig.direction_conviction != null && (
+          <span
+            className={`dir-conv ${dirClass(sig.direction)}`}
+            title="raw strength of the direction source (0–1), before the timing gate"
+          >
+            {CRYPTO.has(asset) ? 'whale' : 'insider'} {sig.direction_conviction.toFixed(2)}
+          </span>
+        )}
       </div>
 
       <div className="flags">

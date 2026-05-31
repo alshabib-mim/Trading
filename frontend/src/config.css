@@ -240,15 +240,26 @@ button:disabled { opacity: 0.6; cursor: default; }
 .st-watch { color: var(--muted); }
 .st-armed { color: var(--accent); border-color: var(--accent); }
 
+.conf-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.55rem; }
 .conf-bar {
   position: relative;
+  flex: 1;
   height: 16px;
   background: #14171d;
   border: 1px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
-  margin-bottom: 0.55rem;
 }
+.dir-conv {
+  font-size: 0.74rem;
+  white-space: nowrap;
+  padding: 0.12rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.dir-conv.dir-bull { color: var(--ok); border-color: #2c5; }
+.dir-conv.dir-bear { color: var(--err); border-color: #c44; }
 .conf-fill { position: absolute; top: 0; left: 0; bottom: 0; background: #3a4252; transition: width 0.4s ease; }
 .conf-fill.armed { background: linear-gradient(90deg, #2a5cff55, var(--accent)); }
 .conf-thresh { position: absolute; top: -1px; bottom: -1px; width: 2px; background: #f59e0b; opacity: 0.8; }

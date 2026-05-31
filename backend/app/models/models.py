@@ -85,7 +85,8 @@ class TradingSignal(Base):
     asset = Column(String, index=True)
     direction = Column(String) # bullish, bearish, none
     signal_type = Column(String) # buy, sell
-    confidence_score = Column(Float)
+    confidence_score = Column(Float)  # armed-confidence (gated by timing)
+    direction_conviction = Column(Float, nullable=True)  # raw 0-1 strength of the direction source
     status = Column(String) # watch, pending, approved, rejected, executed
     institutional_conf = Column(Boolean)
     whale_conf = Column(Boolean)
