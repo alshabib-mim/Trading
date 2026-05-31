@@ -6,6 +6,7 @@ SEC fair-access policy requires a real User-Agent contact string on every
 request and caps traffic at ~10 req/s. No API key is needed.
 """
 import os
+import re
 import time
 import datetime
 import xml.etree.ElementTree as ET
@@ -13,7 +14,7 @@ import xml.etree.ElementTree as ET
 import requests
 from sqlalchemy.orm import Session
 
-from app.models.models import InsiderTransaction, SourceConfig
+from app.models.models import InsiderTransaction, InstitutionalPosition, SourceConfig
 from app.services.market_data import is_crypto
 
 SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "Mimar Trading System alshabib@mimarencasa.com")
@@ -212,3 +213,180 @@ def run_insider(tickers, db: Session):
         except requests.RequestException:
             continue
     return readings
+
+
+# ---------------------------------------------------------------------------
+# 13F support feed (slow, SUPPORT-only). Confirms that tracked "smart money"
+# funds hold a name the faster signals already flagged — never arms alone.
+# 13F reports CUSIP + nameOfIssuer (no ticker), so we map nameOfIssuer to a
+# ticker by normalized-name match against EDGAR's company-title list. Good
+# enough for a support nudge; not a precise CUSIP map.
+# ---------------------------------------------------------------------------
+
+_NAME_SUFFIXES = {
+    "INC", "CORP", "CORPORATION", "CO", "COMPANY", "LP", "LLP", "LLC", "LTD",
+    "PLC", "THE", "COM", "CL", "CLASS", "HLDGS", "HOLDINGS", "HOLDING", "GROUP",
+    "GRP", "SA", "NV", "AG", "TRUST", "ADR", "PLC.", "&",
+}
+_company_titles = {}  # ticker -> normalized title
+
+
+def _norm_name(s):
+    s = re.sub(r"[^A-Z0-9 ]", " ", (s or "").upper())
+    toks = [t for t in s.split() if t and t not in _NAME_SUFFIXES]
+    return " ".join(toks)
+
+
+def _load_company_titles():
+    if _company_titles:
+        return _company_titles
+    data = _get(_TICKER_MAP_URL, as_json=True)
+    for row in data.values():
+        _company_titles[row["ticker"].upper()] = _norm_name(row["title"])
+    return _company_titles
+
+
+def _local(tag):
+    return tag.rsplit("}", 1)[-1]
+
+
+def _latest_13f(cik):
+    data = _get(_SUBMISSIONS_URL.format(cik=cik), as_json=True)
+    recent = data.get("filings", {}).get("recent", {})
+    forms = recent.get("form", [])
+    accnos = recent.get("accessionNumber", [])
+    dates = recent.get("filingDate", [])
+    for i, form in enumerate(forms):
+        if form == "13F-HR":
+            return {"accession": accnos[i], "filed": dates[i]}
+    return None
+
+
+def _info_table_url(cik, accession):
+    acc = accession.replace("-", "")
+    idx = _get(f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/index.json", as_json=True)
+    items = idx.get("directory", {}).get("item", [])
+    xmls = [it["name"] for it in items if it["name"].lower().endswith(".xml")]
+    # Prefer a filename that looks like the information table; skip the cover doc.
+    for nm in xmls:
+        low = nm.lower()
+        if "primary_doc" in low:
+            continue
+        if any(k in low for k in ("infotable", "form13f", "table", "info")):
+            return f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/{nm}"
+    for nm in xmls:
+        if "primary_doc" not in nm.lower():
+            return f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/{nm}"
+    return None
+
+
+def _parse_info_table(xml_bytes):
+    root = ET.fromstring(xml_bytes)
+    holdings = []
+    for el in root.iter():
+        if _local(el.tag) != "infoTable":
+            continue
+        h = {"name": None, "cusip": None, "value": 0.0, "shares": 0.0}
+        for child in el:
+            lt = _local(child.tag)
+            if lt == "nameOfIssuer":
+                h["name"] = (child.text or "").strip()
+            elif lt == "cusip":
+                h["cusip"] = (child.text or "").strip()
+            elif lt == "value":
+                try:
+                    h["value"] = float(child.text)
+                except (TypeError, ValueError):
+                    pass
+            elif lt == "shrsOrPrnAmt":
+                for gc in child:
+                    if _local(gc.tag) == "sshPrnamt":
+                        try:
+                            h["shares"] = float(gc.text)
+                        except (TypeError, ValueError):
+                            pass
+        if h["name"]:
+            holdings.append(h)
+    return holdings
+
+
+def _fund_list(cfg):
+    funds = (cfg.options or {}).get("funds", []) or []
+    out = []
+    for f in funds:
+        if isinstance(f, dict) and f.get("cik"):
+            out.append((str(f["cik"]), f.get("name", "")))
+        elif f:
+            out.append((str(f), ""))
+    return out
+
+
+def fetch_13f_readings(tickers, db: Session, cfg: SourceConfig):
+    """SUPPORT readings: for each tracked stock ticker, how many tracked funds
+    hold it in their latest 13F. Persists holdings to institutional_positions.
+    """
+    fund_list = _fund_list(cfg)
+    if not fund_list:
+        return []
+
+    stock_tickers = [t for t in tickers if not is_crypto(t)]
+    titles = _load_company_titles()
+    title_to_ticker = {}
+    for t in stock_tickers:
+        norm = titles.get(t.upper())
+        if norm:
+            title_to_ticker[norm] = t
+
+    agg = {t: {"funds": set(), "value": 0.0, "rows": []} for t in stock_tickers}
+    for cik, fname in fund_list:
+        latest = _latest_13f(cik)
+        if not latest:
+            continue
+        url = _info_table_url(cik, latest["accession"])
+        if not url:
+            continue
+        try:
+            holdings = _parse_info_table(_get(url))
+        except (requests.RequestException, ET.ParseError):
+            continue
+        label = fname or cik
+        for h in holdings:
+            tk = title_to_ticker.get(_norm_name(h["name"]))
+            if tk is None:
+                continue
+            agg[tk]["funds"].add(label)
+            agg[tk]["value"] += h["value"]
+            agg[tk]["rows"].append((label, tk, h["shares"], h["value"], latest["filed"]))
+
+    total_funds = len(fund_list)
+    readings = []
+    for tk, a in agg.items():
+        n = len(a["funds"])
+        if n == 0:
+            continue
+        for (fn, t, shares, value, filed) in a["rows"]:
+            db.add(InstitutionalPosition(
+                fund_name=fn, ticker=t, shares=shares, value=value,
+                conviction_score=0.0, quarter=filed,
+            ))
+        readings.append({
+            "source": "institutional",
+            "asset": tk,
+            "direction": "bullish",          # held by funds = bullish tilt...
+            "score": round(n / total_funds, 4),
+            "role": "support",               # ...but SUPPORT only — never arms alone
+            "detail": f"{n}/{total_funds} tracked funds hold {tk}",
+            "observed_at": datetime.datetime.utcnow().isoformat(),
+        })
+    db.commit()
+    return readings
+
+
+def run_13f(tickers, db: Session):
+    cfg = db.query(SourceConfig).filter(SourceConfig.source == "institutional").first()
+    if cfg is None or not cfg.enabled:
+        return []
+    try:
+        return fetch_13f_readings(tickers, db, cfg)
+    except requests.RequestException:
+        return []
