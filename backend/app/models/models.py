@@ -55,13 +55,15 @@ class TradingSignal(Base):
     __tablename__ = "trading_signals"
     id = Column(Integer, primary_key=True, index=True)
     asset = Column(String, index=True)
+    direction = Column(String) # bullish, bearish, none
     signal_type = Column(String) # buy, sell
     confidence_score = Column(Float)
-    status = Column(String) # pending, approved, rejected, executed
+    status = Column(String) # watch, pending, approved, rejected, executed
     institutional_conf = Column(Boolean)
     whale_conf = Column(Boolean)
     technical_conf = Column(Boolean)
     sentiment_conf = Column(Boolean)
+    reasoning = Column(String, nullable=True) # Claude reasoning layer, only on armed signals
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
 class ExecutedTrade(Base):
