@@ -44,6 +44,7 @@ def _format(c):
             ("sentiment", c.get("sentiment_conf")),
             ("institutional 13F", c.get("institutional_conf")),
             ("whale flow", c.get("whale_conf")),
+            ("macro news", c.get("news_conf")),
         ] if ok
     ]
     return (

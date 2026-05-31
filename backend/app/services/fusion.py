@@ -24,7 +24,7 @@ from app.models.models import (
     TradingSignal, TechnicalSignal, InsiderTransaction, WhaleMovement,
     SentimentScore, InstitutionalPosition, SourceConfig,
 )
-from app.services import assets
+from app.services import assets, macro
 
 # Fusion defaults — overridden by the 'fusion' source_config row's options.
 DEFAULTS = {
@@ -32,6 +32,7 @@ DEFAULTS = {
     "w_direction": 0.6,
     "w_sentiment": 0.15,
     "w_support": 0.1,
+    "w_news": 0.15,  # forex macro news: nudges/vetoes confidence, never flips direction.
 }
 
 
@@ -150,6 +151,21 @@ def _institutional_reading(asset, db, cfg, now):
     return {"role": "support", "direction": "bullish", "conviction": round(score, 4)}
 
 
+def _news_reading(asset, db, cfg):
+    """Forex-only macro news. Claude scores per-currency; macro.pair_reading derives
+    this pair's direction deterministically (gold special-cased). Returns
+    {direction, conviction} or None (None = no usable read → no nudge)."""
+    if not _enabled(cfg):
+        return None
+    snap = macro.latest_snapshot(db, _freshness(cfg, macro.DEFAULT_FRESHNESS))
+    if snap is None:
+        return None
+    reading = macro.pair_reading(asset, snap)
+    if reading is None:
+        return None
+    return {"role": "confirm", **reading}
+
+
 # --- combine ----------------------------------------------------------------
 
 def fuse_asset(asset, db: Session, now=None):
@@ -182,6 +198,7 @@ def fuse_asset(asset, db: Session, now=None):
     w_dir = fopts.get("w_direction", DEFAULTS["w_direction"])
     w_sent = fopts.get("w_sentiment", DEFAULTS["w_sentiment"])
     w_sup = fopts.get("w_support", DEFAULTS["w_support"])
+    w_news = fopts.get("w_news", DEFAULTS["w_news"])
 
     direction = direction_src["direction"] if direction_src else "none"
 
@@ -194,13 +211,20 @@ def fuse_asset(asset, db: Session, now=None):
     direction_conviction = direction_src["conviction"] if direction_src else 0.0
     # Raw direction-source strength persisted for the UI (None when no source).
     dconv = direction_src["conviction"] if direction_src else None
+    news_conf = None  # forex-only; stays None for stock/crypto
 
     if dir_is_tech:
-        # Forex/gold: technical IS the direction. Confidence = technical strength
-        # itself (no w_dir cap — there are no confirmations to reserve room for).
+        # Forex/gold: technical IS the direction. Confidence = technical strength,
+        # then macro news NUDGES it (confirm raises, contradict dampens) — news can
+        # never flip the direction, which technical alone owns.
         technical_conf = direction != "none"
         timing_strength = direction_conviction
-        confidence = round(direction_conviction, 4)
+        news = _news_reading(asset, db, _cfg(db, "macro")) if direction != "none" else None
+        news_conf = bool(news and news["direction"] != "none" and news["direction"] == direction)
+        confidence = direction_conviction
+        if news and news["direction"] != "none" and direction != "none":
+            confidence += w_news * news["conviction"] * (1 if news_conf else -1)
+        confidence = round(max(0.0, min(1.0, confidence)), 4)
     else:
         # Stock/crypto: technical is a separate timing gate; nudged by confirm/support.
         technical_conf = agrees(tech)
@@ -233,6 +257,7 @@ def fuse_asset(asset, db: Session, now=None):
             "sentiment_conf": sentiment_conf,
             "institutional_conf": institutional_conf,
             "whale_conf": whale_conf,
+            "news_conf": news_conf,
             "detail": detail,
         }, db)
 
@@ -247,6 +272,7 @@ def fuse_asset(asset, db: Session, now=None):
         whale_conf=whale_conf,
         technical_conf=technical_conf,
         sentiment_conf=sentiment_conf,
+        news_conf=news_conf,
         reasoning=reasoning,
         timestamp=now,
     )

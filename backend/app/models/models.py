@@ -88,6 +88,21 @@ class SentimentScore(Base):
     source = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
+class MacroBias(Base):
+    """Per-currency macro bias snapshot for forex news (4th signal source).
+    Claude scores each currency's bias (bullish/bearish/neutral/insufficient) from
+    high-impact macro releases; gold gets a DIRECT per-pair read (not decomposed).
+    Pair direction is derived deterministically in code (base − quote arithmetic).
+    """
+    __tablename__ = "macro_bias"
+    id = Column(Integer, primary_key=True, index=True)
+    currencies = Column(JSON)  # {"USD": {"bias": "bullish", "strength": 0.6, "why": "..."}, ...}
+    gold = Column(JSON, nullable=True)  # {"direction": "bearish", "strength": 0.5, "why": "..."} — direct XAU-USD read
+    model = Column(String, nullable=True)   # which Claude model produced it
+    raw = Column(String, nullable=True)     # full model text, for audit
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+
+
 class TradingSignal(Base):
     __tablename__ = "trading_signals"
     id = Column(Integer, primary_key=True, index=True)
@@ -101,6 +116,7 @@ class TradingSignal(Base):
     whale_conf = Column(Boolean)
     technical_conf = Column(Boolean)
     sentiment_conf = Column(Boolean)
+    news_conf = Column(Boolean, nullable=True)  # forex macro news confirms direction (forex only)
     reasoning = Column(String, nullable=True) # Claude reasoning layer, only on armed signals
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 

@@ -22,6 +22,7 @@ class TradingSignalSchema(BaseModel):
     whale_conf: Optional[bool] = None
     sentiment_conf: Optional[bool] = None
     institutional_conf: Optional[bool] = None
+    news_conf: Optional[bool] = None  # forex macro news confirms direction (forex only)
     reasoning: Optional[str] = None
     timestamp: datetime
 

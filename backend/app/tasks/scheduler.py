@@ -6,6 +6,7 @@ from app.services.whale import run_whale
 from app.services.fusion import run_fusion
 from app.services.risk import run_risk_engine
 from app.services.news import run_sentiment
+from app.services.macro import run_macro
 from app.services.maintenance import cleanup_watch_rows
 from app.services import assets
 
@@ -59,6 +60,19 @@ def update_sentiment_signals():
         db.close()
 
 
+def update_macro_signals():
+    # Forex macro news (4th source). Frequent TICK — run_macro internally decides
+    # whether it's actually due: enabled + forex market open (skips the Fri→Sun
+    # weekend) + a new scheduled run-time slot (once/twice daily, UI-tunable). So
+    # cadence/time/enabled changes in Config take effect with no redeploy, and the
+    # expensive web_search fetch fires at most once per slot.
+    db = SessionLocal()
+    try:
+        run_macro(db)
+    finally:
+        db.close()
+
+
 def update_fused_signals():
     # Combine the freshest source readings into trading_signals (watch/pending).
     db = SessionLocal()
@@ -92,6 +106,7 @@ def start_scheduler():
     scheduler.add_job(update_whale_signals, 'interval', minutes=15)
     scheduler.add_job(update_institutional_signals, 'interval', hours=24)
     scheduler.add_job(update_sentiment_signals, 'interval', hours=1)
+    scheduler.add_job(update_macro_signals, 'interval', minutes=15)
     scheduler.add_job(update_fused_signals, 'interval', minutes=15)
     scheduler.add_job(update_risk_engine, 'interval', minutes=5)
     scheduler.add_job(cleanup_old_watch_rows, 'interval', hours=24)
