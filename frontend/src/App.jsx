@@ -14,6 +14,7 @@ import Dashboard from './pages/Dashboard';
 import Config from './pages/Config';
 import Charts from './pages/Charts';
 import Risk from './pages/Risk';
+import Assets from './pages/Assets';
 import './config.css';
 
 function Shell({ children, me, onLogout }) {
@@ -24,6 +25,7 @@ function Shell({ children, me, onLogout }) {
         <Link to="/">Dashboard</Link>
         <Link to="/charts">Charts</Link>
         {me?.role === 'owner' && <Link to="/risk">Risk</Link>}
+        {me?.role === 'owner' && <Link to="/assets">Assets</Link>}
         {me?.role === 'owner' && <Link to="/config">Config</Link>}
         <span className="spacer" />
         {me && <span className="who">{me.username}</span>}
@@ -101,6 +103,16 @@ function AppRoutes() {
           <OwnerOnly me={me}>
             <Shell me={me} onLogout={logout}>
               <Risk />
+            </Shell>
+          </OwnerOnly>
+        }
+      />
+      <Route
+        path="/assets"
+        element={
+          <OwnerOnly me={me}>
+            <Shell me={me} onLogout={logout}>
+              <Assets />
             </Shell>
           </OwnerOnly>
         }

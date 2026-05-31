@@ -327,3 +327,12 @@ table.positions td, table.positions th { font-size: 0.85rem; white-space: nowrap
 .news-rationale { font-size: 0.82rem; line-height: 1.5; color: var(--text); margin-bottom: 0.6rem; }
 .news-headlines { margin: 0; padding-left: 1.1rem; }
 .news-headlines li { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem; }
+
+/* ---- assets ---- */
+.asset-add { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.asset-add input[type="text"] { width: auto; flex: 1; min-width: 180px; margin-top: 0; }
+.asset-add select {
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 0.5rem 0.6rem; font-size: 0.9rem;
+}
+.asset-add button { white-space: nowrap; }
