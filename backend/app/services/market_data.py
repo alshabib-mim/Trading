@@ -6,20 +6,19 @@ import yfinance as yf
 
 # Assets fetched from a crypto exchange via ccxt rather than yfinance.
 CRYPTO_ASSETS = {"BTC-USD", "ETH-USD"}
-CCXT_EXCHANGE = os.getenv("CCXT_EXCHANGE", "kraken")
+DEFAULT_EXCHANGE = os.getenv("CCXT_EXCHANGE", "kraken")
 
-_exchange = None
+_exchanges = {}
 
 
 def is_crypto(asset: str) -> bool:
     return asset in CRYPTO_ASSETS
 
 
-def _get_exchange():
-    global _exchange
-    if _exchange is None:
-        _exchange = getattr(ccxt, CCXT_EXCHANGE)({"enableRateLimit": True, "timeout": 15000})
-    return _exchange
+def _get_exchange(name: str):
+    if name not in _exchanges:
+        _exchanges[name] = getattr(ccxt, name)({"enableRateLimit": True, "timeout": 15000})
+    return _exchanges[name]
 
 
 def _ccxt_symbol(asset: str) -> str:
@@ -27,8 +26,8 @@ def _ccxt_symbol(asset: str) -> str:
     return asset.replace("-", "/")
 
 
-def _fetch_crypto_ohlcv(asset: str, timeframe: str = "1h", limit: int = 300) -> pd.DataFrame:
-    raw = _get_exchange().fetch_ohlcv(_ccxt_symbol(asset), timeframe=timeframe, limit=limit)
+def _fetch_crypto_ohlcv(asset: str, exchange: str, timeframe: str = "1h", limit: int = 300) -> pd.DataFrame:
+    raw = _get_exchange(exchange).fetch_ohlcv(_ccxt_symbol(asset), timeframe=timeframe, limit=limit)
     if not raw:
         return pd.DataFrame()
     df = pd.DataFrame(raw, columns=["ts", "Open", "High", "Low", "Close", "Volume"])
@@ -45,8 +44,11 @@ def _fetch_stock_ohlcv(asset: str, period: str = "1mo", interval: str = "1h") ->
     return data
 
 
-def get_ohlcv(asset: str) -> pd.DataFrame:
-    """OHLCV DataFrame with Open/High/Low/Close/Volume columns, crypto via ccxt, stocks via yfinance."""
+def get_ohlcv(asset: str, exchange: str = None, timeframe: str = "1h", limit: int = 300) -> pd.DataFrame:
+    """OHLCV DataFrame with Open/High/Low/Close/Volume columns, crypto via ccxt, stocks via yfinance.
+
+    For crypto, `exchange` selects the ccxt exchange (falls back to the env default).
+    """
     if is_crypto(asset):
-        return _fetch_crypto_ohlcv(asset)
+        return _fetch_crypto_ohlcv(asset, exchange or DEFAULT_EXCHANGE, timeframe=timeframe, limit=limit)
     return _fetch_stock_ohlcv(asset)

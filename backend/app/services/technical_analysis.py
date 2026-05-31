@@ -4,7 +4,7 @@ import pandas as pd
 import pandas_ta_classic as ta
 from sqlalchemy.orm import Session
 
-from app.models.models import TechnicalSignal
+from app.models.models import TechnicalSignal, SourceConfig
 from app.services.market_data import get_ohlcv
 
 
@@ -70,7 +70,19 @@ def _support_resistance_signal(last):
 
 
 def fetch_and_analyze(ticker: str, db: Session):
-    data = get_ohlcv(ticker)
+    # Read the technical source's provider choice at runtime — switching needs no redeploy.
+    cfg = db.query(SourceConfig).filter(SourceConfig.source == "technical").first()
+    if cfg is not None and not cfg.enabled:
+        return []
+    exchange = cfg.provider if cfg is not None else None
+    options = cfg.options if cfg is not None and cfg.options else {}
+
+    data = get_ohlcv(
+        ticker,
+        exchange=exchange,
+        timeframe=options.get("timeframe", "1h"),
+        limit=options.get("limit", 300),
+    )
     if data is None or data.empty:
         return []
 

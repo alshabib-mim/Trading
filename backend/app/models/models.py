@@ -13,6 +13,19 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     role = Column(String, default="owner") # owner, viewer
 
+class SourceConfig(Base):
+    __tablename__ = "source_config"
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String, unique=True, index=True, nullable=False) # technical, whale, institutional, sentiment
+    provider = Column(String, nullable=False)
+    credentials_encrypted = Column(String, nullable=True) # AES-256-GCM token; null = no key needed
+    enabled = Column(Boolean, default=False)
+    weight = Column(Float, default=1.0)
+    freshness_seconds = Column(Integer)
+    interval_seconds = Column(Integer)
+    options = Column(JSON, nullable=True) # provider-specific params
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
 class InstitutionalPosition(Base):
     __tablename__ = "institutional_positions"
     id = Column(Integer, primary_key=True, index=True)
