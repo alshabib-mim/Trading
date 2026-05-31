@@ -12,6 +12,7 @@ import { isAuthed, clearToken } from './auth';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Config from './pages/Config';
+import Charts from './pages/Charts';
 import './config.css';
 
 function Shell({ children, me, onLogout }) {
@@ -20,6 +21,7 @@ function Shell({ children, me, onLogout }) {
       <nav className="nav">
         <span className="brand">Trading</span>
         <Link to="/">Dashboard</Link>
+        <Link to="/charts">Charts</Link>
         {me?.role === 'owner' && <Link to="/config">Config</Link>}
         <span className="spacer" />
         {me && <span className="who">{me.username}</span>}
@@ -77,6 +79,16 @@ function AppRoutes() {
           <Protected>
             <Shell me={me} onLogout={logout}>
               <Dashboard />
+            </Shell>
+          </Protected>
+        }
+      />
+      <Route
+        path="/charts"
+        element={
+          <Protected>
+            <Shell me={me} onLogout={logout}>
+              <Charts />
             </Shell>
           </Protected>
         }
