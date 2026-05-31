@@ -16,6 +16,12 @@ class TradingSignalSchema(BaseModel):
     signal_type: Optional[str] = None  # null on watch rows (no armed direction)
     confidence_score: float
     status: str
+    # Which sources agreed with the read direction (null/false when no direction).
+    technical_conf: Optional[bool] = None
+    whale_conf: Optional[bool] = None
+    sentiment_conf: Optional[bool] = None
+    institutional_conf: Optional[bool] = None
+    reasoning: Optional[str] = None
     timestamp: datetime
 
     class Config:

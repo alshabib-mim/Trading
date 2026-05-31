@@ -212,3 +212,64 @@ button:disabled { opacity: 0.6; cursor: default; }
 }
 .chart-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
 .chart-legend i { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+
+/* ---- dashboard engine read ---- */
+.section-sub { color: var(--muted); font-size: 0.82rem; line-height: 1.5; margin: 0 0 1rem; }
+.section-sub b { color: var(--text); font-weight: 600; }
+
+.engine-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.engine-row {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+}
+.engine-row.armed { border-left-color: var(--accent); background: #1e2433; }
+
+.er-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.55rem; }
+.er-asset { font-weight: 700; font-size: 0.98rem; min-width: 4.5rem; }
+.er-head .spacer { flex: 1; }
+.small { font-size: 0.74rem; }
+
+.badge.dir { text-transform: capitalize; }
+.dir-bull { color: var(--ok); border-color: var(--ok); }
+.dir-bear { color: var(--err); border-color: var(--err); }
+.dir-none { color: var(--muted); }
+.badge.status { text-transform: capitalize; }
+.st-watch { color: var(--muted); }
+.st-armed { color: var(--accent); border-color: var(--accent); }
+
+.conf-bar {
+  position: relative;
+  height: 16px;
+  background: #14171d;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.55rem;
+}
+.conf-fill { position: absolute; top: 0; left: 0; bottom: 0; background: #3a4252; transition: width 0.4s ease; }
+.conf-fill.armed { background: linear-gradient(90deg, #2a5cff55, var(--accent)); }
+.conf-thresh { position: absolute; top: -1px; bottom: -1px; width: 2px; background: #f59e0b; opacity: 0.8; }
+.conf-val { position: absolute; right: 6px; top: 0; line-height: 16px; font-size: 0.7rem; color: var(--text); }
+
+.flags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.flag {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: #5b626c;
+  background: transparent;
+}
+.flag.on { color: var(--ok); border-color: var(--ok); background: #16271b; }
+
+.er-reasoning {
+  margin-top: 0.6rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
