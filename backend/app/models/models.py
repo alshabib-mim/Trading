@@ -26,6 +26,14 @@ class SourceConfig(Base):
     options = Column(JSON, nullable=True) # provider-specific params
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
+class AssetConfig(Base):
+    __tablename__ = "asset_config"
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, unique=True, index=True, nullable=False)  # AAPL, BTC-USD
+    asset_type = Column(String, nullable=False)                       # stock | crypto
+    enabled = Column(Boolean, default=True)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
 class InstitutionalPosition(Base):
     __tablename__ = "institutional_positions"
     id = Column(Integer, primary_key=True, index=True)
