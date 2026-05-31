@@ -1,19 +1,14 @@
-import yfinance as yf
 import pandas_ta_classic as ta
-import pandas as pd
 from sqlalchemy.orm import Session
 from app.models.models import TechnicalSignal
+from app.services.market_data import get_ohlcv
 import datetime
 
 def fetch_and_analyze(ticker: str, db: Session):
-    data = yf.download(ticker, period="1mo", interval="1h")
-    if data.empty:
+    data = get_ohlcv(ticker)
+    if data is None or data.empty:
         return
-    
-    # Flatten MultiIndex columns if present
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
-    
+
     # Calculate indicators
     data.ta.rsi(append=True)
     data.ta.sma(length=20, append=True)
