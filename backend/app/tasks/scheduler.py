@@ -6,6 +6,7 @@ from app.services.whale import run_whale
 from app.services.fusion import run_fusion
 from app.services.risk import run_risk_engine
 from app.services.news import run_sentiment
+from app.services.maintenance import cleanup_watch_rows
 
 TICKERS = ["AAPL", "TSLA", "BTC-USD", "ETH-USD"]
 
@@ -75,6 +76,14 @@ def update_risk_engine():
         db.close()
 
 
+def cleanup_old_watch_rows():
+    db = SessionLocal()
+    try:
+        cleanup_watch_rows(db)
+    finally:
+        db.close()
+
+
 def start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_job(update_technical_signals, 'interval', minutes=15)
@@ -84,5 +93,6 @@ def start_scheduler():
     scheduler.add_job(update_sentiment_signals, 'interval', hours=1)
     scheduler.add_job(update_fused_signals, 'interval', minutes=15)
     scheduler.add_job(update_risk_engine, 'interval', minutes=5)
+    scheduler.add_job(cleanup_old_watch_rows, 'interval', hours=24)
     scheduler.start()
     return scheduler
