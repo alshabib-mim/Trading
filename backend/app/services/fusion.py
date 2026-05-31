@@ -199,8 +199,22 @@ def fuse_asset(asset, db: Session, now=None):
 
     reasoning = None
     if armed:
-        # reasoning.py plugs in here (built next) — only ever called on armed rows.
-        reasoning = None
+        # Only ever called on armed rows — never on watch rows.
+        from app.services.reasoning import generate_reasoning
+        detail = (
+            f"direction conviction {direction_conviction:.2f}, "
+            f"technical timing {timing_strength:.2f}"
+        )
+        reasoning = generate_reasoning({
+            "asset": asset,
+            "direction": direction,
+            "confidence": confidence,
+            "technical_conf": technical_conf,
+            "sentiment_conf": sentiment_conf,
+            "institutional_conf": institutional_conf,
+            "whale_conf": whale_conf,
+            "detail": detail,
+        }, db)
 
     row = TradingSignal(
         asset=asset,
