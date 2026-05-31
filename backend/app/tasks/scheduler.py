@@ -4,6 +4,7 @@ from app.services.technical_analysis import fetch_and_analyze
 from app.services.edgar import run_insider, run_13f
 from app.services.whale import run_whale
 from app.services.fusion import run_fusion
+from app.services.risk import run_risk_engine
 
 TICKERS = ["AAPL", "TSLA", "BTC-USD", "ETH-USD"]
 
@@ -55,6 +56,15 @@ def update_fused_signals():
         db.close()
 
 
+def update_risk_engine():
+    # Paper execution + risk controls: open/manage/close positions, enforce breakers.
+    db = SessionLocal()
+    try:
+        run_risk_engine(db)
+    finally:
+        db.close()
+
+
 def start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_job(update_technical_signals, 'interval', minutes=15)
@@ -62,5 +72,6 @@ def start_scheduler():
     scheduler.add_job(update_whale_signals, 'interval', minutes=15)
     scheduler.add_job(update_institutional_signals, 'interval', hours=24)
     scheduler.add_job(update_fused_signals, 'interval', minutes=15)
+    scheduler.add_job(update_risk_engine, 'interval', minutes=5)
     scheduler.start()
     return scheduler

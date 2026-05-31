@@ -7,7 +7,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth, signals, trades, config, charts
+from app.api import auth, signals, trades, config, charts, risk
 from app.core.crypto import validate_encryption_key
 from app.tasks.scheduler import start_scheduler
 
@@ -28,6 +28,7 @@ app.include_router(signals.router, prefix="/api/signals", tags=["signals"])
 app.include_router(trades.router, prefix="/api/trades", tags=["trades"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
 app.include_router(charts.router, prefix="/api/charts", tags=["charts"])
+app.include_router(risk.router, prefix="/api/risk", tags=["risk"])
 
 @app.on_event("startup")
 def startup_event():

@@ -103,13 +103,33 @@ class ExecutedTrade(Base):
     entry_price = Column(Float)
     exit_price = Column(Float, nullable=True)
     size = Column(Float)
-    stop_loss = Column(Float)
-    take_profit = Column(Float)
+    stop_loss = Column(Float, nullable=True)
+    take_profit = Column(Float, nullable=True)
     pnl = Column(Float, nullable=True)
     status = Column(String) # open, closed
+    side = Column(String, nullable=True)  # long, short
+    close_reason = Column(String, nullable=True)  # stop, target, manual
+    overrides = Column(JSON, nullable=True)  # per-trade guardrail overrides (stop_loss/take_profit only)
     entry_time = Column(DateTime, default=datetime.datetime.utcnow)
     exit_time = Column(DateTime, nullable=True)
     explanation = Column(String, nullable=True) # Claude's explanation
+
+class RiskConfig(Base):
+    __tablename__ = "risk_config"
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True, nullable=False)  # account, daily_loss, drawdown, max_concurrent, stop_loss, take_profit
+    enabled = Column(Boolean, default=True)
+    params = Column(JSON, nullable=True)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+class RiskState(Base):
+    __tablename__ = "risk_state"
+    id = Column(Integer, primary_key=True, index=True)
+    peak_equity = Column(Float)
+    day_date = Column(String, nullable=True)        # YYYY-MM-DD of the current day baseline
+    day_start_equity = Column(Float, nullable=True)
+    manual_halt = Column(Boolean, default=False)    # owner-settable kill switch
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 class BrokerAccount(Base):
     __tablename__ = "broker_accounts"
