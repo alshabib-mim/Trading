@@ -21,21 +21,41 @@ const PARAM_LABELS = {
 // account has no on/off (it's not a guardrail); everything else is toggleable.
 const TOGGLEABLE = new Set(['daily_loss', 'drawdown', 'max_concurrent', 'stop_loss', 'take_profit']);
 
-function ConfigCard({ row, onSaved }) {
+function fieldsFromRow(row) {
+  const f = {};
+  Object.keys(row.params || {}).forEach((k) => {
+    f[k] = row.params[k] == null ? '' : String(row.params[k]);
+  });
+  return f;
+}
+
+function ConfigCard({ row, onSaved, onChanged }) {
   const [enabled, setEnabled] = useState(row.enabled);
-  const [params, setParams] = useState({ ...row.params });
+  const [fields, setFields] = useState(() => fieldsFromRow(row));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+
+  // Re-sync from props when the row actually changes (e.g. after a save).
+  // The 30s state poll does NOT touch rows, so in-progress edits are preserved.
+  useEffect(() => {
+    setEnabled(row.enabled);
+    setFields(fieldsFromRow(row));
+  }, [row.key, row.updated_at]);
+
+  const setField = (k, val) => setFields((f) => ({ ...f, [k]: val }));
 
   const save = async () => {
     setBusy(true);
     setMsg(null);
     try {
-      const numeric = {};
-      Object.entries(params).forEach(([k, v]) => { numeric[k] = v === '' ? null : Number(v); });
-      const res = await api.put(`/risk/config/${row.key}`, { enabled, params: numeric });
+      const params = {};
+      Object.entries(fields).forEach(([k, v]) => {
+        params[k] = String(v).trim() === '' ? null : Number(v);
+      });
+      const res = await api.put(`/risk/config/${row.key}`, { enabled, params });
       setMsg({ kind: 'ok', text: 'Saved' });
       if (onSaved) onSaved(res.data);
+      if (onChanged) onChanged();
     } catch (e) {
       setMsg({ kind: 'error', text: e.response?.data?.detail || 'Save failed' });
     } finally {
@@ -56,14 +76,14 @@ function ConfigCard({ row, onSaved }) {
         )}
       </div>
       <div className="row3">
-        {Object.entries(params).map(([k, v]) => (
+        {Object.keys(fields).map((k) => (
           <label key={k}>
             {PARAM_LABELS[k] || k}
             <input
-              type="number"
-              step="any"
-              value={v ?? ''}
-              onChange={(e) => setParams((p) => ({ ...p, [k]: e.target.value }))}
+              type="text"
+              inputMode="decimal"
+              value={fields[k]}
+              onChange={(e) => setField(k, e.target.value)}
             />
           </label>
         ))}
@@ -81,6 +101,13 @@ export default function Risk() {
   const [state, setState] = useState(null);
   const [error, setError] = useState('');
 
+  const loadState = async () => {
+    try {
+      const s = await api.get('/risk/state');
+      setState(s.data);
+    } catch { /* ignore */ }
+  };
+
   const load = async () => {
     try {
       const [c, s] = await Promise.all([api.get('/risk/config'), api.get('/risk/state')]);
@@ -94,9 +121,7 @@ export default function Risk() {
 
   useEffect(() => {
     load();
-    const t = setInterval(() => {
-      api.get('/risk/state').then((s) => setState(s.data)).catch(() => {});
-    }, 30000);
+    const t = setInterval(loadState, 30000);
     return () => clearInterval(t);
   }, []);
 
@@ -104,7 +129,7 @@ export default function Risk() {
     if (!state) return;
     try {
       await api.put('/risk/state', { manual_halt: !state.manual_halt });
-      load();
+      loadState();
     } catch {
       setError('Halt toggle failed');
     }
@@ -143,7 +168,7 @@ export default function Risk() {
       )}
 
       <div className="grid">
-        {rows.map((r) => <ConfigCard key={r.key} row={r} onSaved={onSaved} />)}
+        {rows.map((r) => <ConfigCard key={r.key} row={r} onSaved={onSaved} onChanged={loadState} />)}
       </div>
     </div>
   );
