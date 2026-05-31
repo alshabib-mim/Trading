@@ -155,6 +155,8 @@ button:disabled { opacity: 0.6; cursor: default; }
 /* ---- charts ---- */
 .charts-page { max-width: 1500px; }
 .charts-sub { color: var(--muted); font-size: 0.85rem; margin: -0.5rem 0 1.25rem; }
+.charts-group { margin-bottom: 1.5rem; }
+.charts-group .group-head { margin: 0.4rem 0 0.9rem; }
 .charts-grid {
   display: grid;
   grid-template-columns: 1fr;
