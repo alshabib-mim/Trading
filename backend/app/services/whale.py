@@ -20,12 +20,11 @@ from app.core.crypto import decrypt
 
 _BASE = "https://api.whale-alert.io/v1/transactions"
 
-# Our asset id -> Whale Alert currency symbol.
-CRYPTO_SYMBOLS = {"BTC-USD": "btc", "ETH-USD": "eth"}
-
-
 def _symbol(asset):
-    return CRYPTO_SYMBOLS.get(asset)
+    # "BTC-USD" -> "btc", "SOL-USD" -> "sol" (Whale Alert currency code).
+    if asset and asset.upper().endswith("-USD"):
+        return asset.split("-")[0].lower()
+    return None
 
 
 def fetch_transactions(api_key, start_ts, min_value, currency=None):

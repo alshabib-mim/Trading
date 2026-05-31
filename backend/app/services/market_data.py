@@ -4,15 +4,15 @@ import ccxt
 import pandas as pd
 import yfinance as yf
 
-# Assets fetched from a crypto exchange via ccxt rather than yfinance.
-CRYPTO_ASSETS = {"BTC-USD", "ETH-USD"}
 DEFAULT_EXCHANGE = os.getenv("CCXT_EXCHANGE", "kraken")
 
 _exchanges = {}
 
 
 def is_crypto(asset: str) -> bool:
-    return asset in CRYPTO_ASSETS
+    # Generic fallback heuristic only — the authoritative type comes from
+    # asset_config (services/assets.py) and is passed to get_ohlcv explicitly.
+    return asset.upper().endswith("-USD")
 
 
 def _get_exchange(name: str):
@@ -44,11 +44,16 @@ def _fetch_stock_ohlcv(asset: str, period: str = "1mo", interval: str = "1h") ->
     return data
 
 
-def get_ohlcv(asset: str, exchange: str = None, timeframe: str = "1h", limit: int = 300) -> pd.DataFrame:
-    """OHLCV DataFrame with Open/High/Low/Close/Volume columns, crypto via ccxt, stocks via yfinance.
+def get_ohlcv(asset: str, asset_type: str = None, exchange: str = None,
+              timeframe: str = "1h", limit: int = 300) -> pd.DataFrame:
+    """OHLCV DataFrame (Open/High/Low/Close/Volume), crypto via ccxt, stocks via yfinance.
 
-    For crypto, `exchange` selects the ccxt exchange (falls back to the env default).
+    `asset_type` ("stock"|"crypto") selects the source — callers resolve it from
+    asset_config. Falls back to the symbol-suffix heuristic if not provided.
+    For crypto, `exchange` selects the ccxt exchange (falls back to env default).
     """
-    if is_crypto(asset):
+    if asset_type is None:
+        asset_type = "crypto" if is_crypto(asset) else "stock"
+    if asset_type == "crypto":
         return _fetch_crypto_ohlcv(asset, exchange or DEFAULT_EXCHANGE, timeframe=timeframe, limit=limit)
     return _fetch_stock_ohlcv(asset)

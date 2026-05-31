@@ -7,53 +7,54 @@ from app.services.fusion import run_fusion
 from app.services.risk import run_risk_engine
 from app.services.news import run_sentiment
 from app.services.maintenance import cleanup_watch_rows
-
-TICKERS = ["AAPL", "TSLA", "BTC-USD", "ETH-USD"]
+from app.services import assets
 
 
 def update_technical_signals():
     db = SessionLocal()
     try:
-        for ticker in TICKERS:
-            fetch_and_analyze(ticker, db)
+        for symbol in assets.enabled_symbols(db):
+            fetch_and_analyze(symbol, db)
     finally:
         db.close()
 
 
 def update_insider_signals():
-    # No-op unless the 'insider' source is enabled in source_config;
-    # run_insider skips crypto tickers (Form 4 is equities only).
+    # Stocks only (Form 4 is equities). No-op unless the 'insider' source is enabled.
     db = SessionLocal()
     try:
-        run_insider(TICKERS, db)
+        stocks, _ = assets.split(db)
+        run_insider(stocks, db)
     finally:
         db.close()
 
 
 def update_whale_signals():
-    # No-op unless the 'whale' source is enabled and a credential is set;
-    # run_whale skips non-crypto tickers.
+    # Crypto only. No-op unless the 'whale' source is enabled with a credential.
     db = SessionLocal()
     try:
-        run_whale(TICKERS, db)
+        _, crypto = assets.split(db)
+        run_whale(crypto, db)
     finally:
         db.close()
 
 
 def update_institutional_signals():
-    # No-op unless the 'institutional' (13F) source is enabled; support-only.
+    # Stocks only (13F support). No-op unless the 'institutional' source is enabled.
     db = SessionLocal()
     try:
-        run_13f(TICKERS, db)
+        stocks, _ = assets.split(db)
+        run_13f(stocks, db)
     finally:
         db.close()
 
 
 def update_sentiment_signals():
-    # Finnhub headlines -> Claude sentiment. No-op until 'news' (key) + 'sentiment' enabled.
+    # Stocks only (Finnhub equities). No-op until 'news' (key) + 'sentiment' enabled.
     db = SessionLocal()
     try:
-        run_sentiment(TICKERS, db)
+        stocks, _ = assets.split(db)
+        run_sentiment(stocks, db)
     finally:
         db.close()
 
@@ -62,7 +63,7 @@ def update_fused_signals():
     # Combine the freshest source readings into trading_signals (watch/pending).
     db = SessionLocal()
     try:
-        run_fusion(TICKERS, db)
+        run_fusion(assets.enabled_symbols(db), db)
     finally:
         db.close()
 

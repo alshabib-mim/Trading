@@ -15,7 +15,6 @@ import requests
 from sqlalchemy.orm import Session
 
 from app.models.models import InsiderTransaction, InstitutionalPosition, SourceConfig
-from app.services.market_data import is_crypto
 
 SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "Mimar Trading System alshabib@mimarencasa.com")
 _HEADERS = {"User-Agent": SEC_USER_AGENT, "Accept-Encoding": "gzip, deflate"}
@@ -205,9 +204,7 @@ def run_insider(tickers, db: Session):
     if cfg is None or not cfg.enabled:
         return []
     readings = []
-    for ticker in tickers:
-        if is_crypto(ticker):
-            continue
+    for ticker in tickers:  # caller passes stock symbols only
         try:
             readings.append(store_and_score(ticker, db, cfg))
         except requests.RequestException:
@@ -330,7 +327,7 @@ def fetch_13f_readings(tickers, db: Session, cfg: SourceConfig):
     if not fund_list:
         return []
 
-    stock_tickers = [t for t in tickers if not is_crypto(t)]
+    stock_tickers = list(tickers)  # caller passes stock symbols only
     titles = _load_company_titles()
     title_to_ticker = {}
     for t in stock_tickers:

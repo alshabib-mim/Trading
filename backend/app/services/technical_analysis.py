@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.models import TechnicalSignal, SourceConfig
 from app.services.market_data import get_ohlcv
+from app.services import assets
 
 
 def _rsi_signal(last):
@@ -79,6 +80,7 @@ def fetch_and_analyze(ticker: str, db: Session):
 
     data = get_ohlcv(
         ticker,
+        asset_type=assets.type_of(ticker, db),
         exchange=exchange,
         timeframe=options.get("timeframe", "1h"),
         limit=options.get("limit", 300),

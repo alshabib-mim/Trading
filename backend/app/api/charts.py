@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.models.models import User, SourceConfig
-from app.services.market_data import get_ohlcv, is_crypto
+from app.services.market_data import get_ohlcv
+from app.services import assets
 
 router = APIRouter()
 
@@ -69,9 +70,11 @@ def get_chart(
 
     cfg = db.query(SourceConfig).filter(SourceConfig.source == "technical").first()
     exchange = cfg.provider if cfg is not None else None
+    asset_type = assets.type_of(asset, db)
+    crypto = asset_type == "crypto"
 
     try:
-        data = get_ohlcv(asset, exchange=exchange, timeframe=timeframe, limit=limit)
+        data = get_ohlcv(asset, asset_type=asset_type, exchange=exchange, timeframe=timeframe, limit=limit)
     except Exception as exc:  # noqa: BLE001 — surface upstream fetch errors cleanly
         raise HTTPException(status_code=502, detail=f"Market data error: {exc}")
 
@@ -121,8 +124,8 @@ def get_chart(
     return {
         "asset": asset,
         "timeframe": timeframe,
-        "exchange": exchange if is_crypto(asset) else "yfinance",
-        "is_crypto": is_crypto(asset),
+        "exchange": exchange if crypto else "yfinance",
+        "is_crypto": crypto,
         "candles": candles,
         "indicators": indicators,
         "fib": {"high": round(hi, 6), "low": round(lo, 6), "levels": fib_levels},

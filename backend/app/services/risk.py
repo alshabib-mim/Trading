@@ -19,6 +19,7 @@ from app.models.models import (
     RiskConfig, RiskState, ExecutedTrade, TradingSignal, SourceConfig,
 )
 from app.services.market_data import get_ohlcv
+from app.services import assets
 
 DEFAULTS = {
     "account": {"starting_capital": 100000.0, "risk_per_trade_pct": 1.0, "max_position_pct": 5.0},
@@ -70,7 +71,7 @@ def _latest_price(asset, db):
     tcfg = db.query(SourceConfig).filter(SourceConfig.source == "technical").first()
     exch = tcfg.provider if tcfg else None
     try:
-        data = get_ohlcv(asset, exchange=exch, timeframe="1h", limit=3)
+        data = get_ohlcv(asset, asset_type=assets.type_of(asset, db), exchange=exch, timeframe="1h", limit=3)
     except Exception:
         return None
     if data is None or data.empty:

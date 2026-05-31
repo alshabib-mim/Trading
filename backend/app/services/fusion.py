@@ -24,7 +24,7 @@ from app.models.models import (
     TradingSignal, TechnicalSignal, InsiderTransaction, WhaleMovement,
     SentimentScore, InstitutionalPosition, SourceConfig,
 )
-from app.services.market_data import is_crypto
+from app.services import assets
 
 # Fusion defaults — overridden by the 'fusion' source_config row's options.
 DEFAULTS = {
@@ -158,7 +158,7 @@ def fuse_asset(asset, db: Session, now=None):
     tech = _technical_reading(asset, db, _cfg(db, "technical"), now)
     sent = _sentiment_reading(asset, db, _cfg(db, "sentiment"), now)
     inst = _institutional_reading(asset, db, _cfg(db, "institutional"), now)
-    if is_crypto(asset):
+    if assets.type_of(asset, db) == "crypto":
         direction_src = _whale_reading(asset, db, _cfg(db, "whale"), now)
         whale_is_dir = True
     else:

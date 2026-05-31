@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 
 from app.models.models import SourceConfig
 from app.core.crypto import decrypt
-from app.services.market_data import is_crypto
 from app.services.ai_service import analyze_sentiment
 
 _BASE = "https://finnhub.io/api/v1/company-news"
@@ -57,9 +56,7 @@ def run_sentiment(assets, db: Session):
     max_headlines = opts.get("max_headlines", 15)
 
     readings = []
-    for asset in assets:
-        if is_crypto(asset):
-            continue  # Finnhub company-news is equities-only
+    for asset in assets:  # caller passes stock symbols only (Finnhub is equities)
         try:
             headlines = fetch_company_news(asset, api_key, lookback, max_headlines)
         except requests.RequestException:
