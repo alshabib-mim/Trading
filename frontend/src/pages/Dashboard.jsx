@@ -79,22 +79,96 @@ function EngineRow({ asset, sig }) {
   );
 }
 
+function sentDir(score) {
+  if (score == null) return { label: 'neutral', cls: 'dir-none' };
+  if (score > 0.5) return { label: 'bullish', cls: 'dir-bull' };
+  if (score < 0.5) return { label: 'bearish', cls: 'dir-bear' };
+  return { label: 'neutral', cls: 'dir-none' };
+}
+
+function NewsCard({ news }) {
+  const [open, setOpen] = useState(null);
+  const byAsset = {};
+  for (const n of news) byAsset[n.asset] = n;
+
+  return (
+    <section className="card">
+      <h2>News &amp; sentiment</h2>
+      <p className="section-sub">
+        What the sentiment AI read. Finnhub headlines + Claude’s rationale per stock.
+        Sentiment is confirm-only — it nudges confidence, never sets direction.
+      </p>
+      <div className="engine-list">
+        {ASSETS.map((a) => {
+          if (CRYPTO.has(a)) {
+            return (
+              <div key={a} className="engine-row">
+                <div className="er-head">
+                  <span className="er-asset">{a}</span>
+                  <span className="muted small">no news coverage — Finnhub is equities-only; crypto direction comes from whale flow</span>
+                </div>
+              </div>
+            );
+          }
+          const n = byAsset[a];
+          if (!n) {
+            return (
+              <div key={a} className="engine-row">
+                <div className="er-head">
+                  <span className="er-asset">{a}</span>
+                  <span className="muted small">no sentiment yet — runs hourly when News + Sentiment are enabled</span>
+                </div>
+              </div>
+            );
+          }
+          const d = sentDir(n.score);
+          const isOpen = open === a;
+          return (
+            <div key={a} className="engine-row">
+              <div className="er-head news-head" onClick={() => setOpen(isOpen ? null : a)}>
+                <span className="er-asset">{a}</span>
+                <span className={`badge dir ${d.cls}`}>{d.label}</span>
+                <span className="muted small">{(n.headlines || []).length} headlines</span>
+                <span className="spacer" />
+                <span className="muted small">{fmtTime(n.timestamp)}</span>
+                <span className="news-toggle">{isOpen ? '▾' : '▸'}</span>
+              </div>
+              {isOpen && (
+                <div className="news-detail">
+                  <div className="news-rationale">{n.rationale}</div>
+                  <ul className="news-headlines">
+                    {(n.headlines || []).map((h, i) => <li key={i}>{h}</li>)}
+                    {(n.headlines || []).length === 0 && <li className="muted">no headlines stored</li>}
+                  </ul>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function Dashboard() {
   const [signals, setSignals] = useState([]);
   const [trades, setTrades] = useState([]);
+  const [news, setNews] = useState([]);
   const [err, setErr] = useState(null);
 
   useEffect(() => {
     let alive = true;
     const fetchData = async () => {
       try {
-        const [sigRes, trRes] = await Promise.all([
+        const [sigRes, trRes, newsRes] = await Promise.all([
           api.get('/signals/'),
           api.get('/trades/'),
+          api.get('/news/'),
         ]);
         if (!alive) return;
         setSignals(sigRes.data);
         setTrades(trRes.data);
+        setNews(newsRes.data);
         setErr(null);
       } catch (e) {
         if (alive) setErr(e.response?.data?.detail || 'Failed to load');
@@ -151,6 +225,8 @@ export default function Dashboard() {
           ))}
         </div>
       </section>
+
+      <NewsCard news={news} />
 
       <section className="card">
         <h2>Paper positions</h2>

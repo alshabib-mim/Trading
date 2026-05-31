@@ -74,8 +74,9 @@ class SentimentScore(Base):
     __tablename__ = "sentiment_scores"
     id = Column(Integer, primary_key=True, index=True)
     asset = Column(String, index=True)
-    score = Column(Float) # 0-100
+    score = Column(Float) # normalized 0..1 (0=bearish, 0.5=neutral, 1=bullish)
     rationale = Column(String)
+    headlines = Column(JSON, nullable=True)  # the exact headlines Claude scored
     source = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 

@@ -90,6 +90,7 @@ def analyze_sentiment(asset: str, headlines: list, db: Session, cfg: Optional[So
         asset=asset,
         score=score,            # normalized 0..1 (0=bearish, 0.5=neutral, 1=bullish)
         rationale=result.rationale,
+        headlines=list(headlines),  # the exact headlines scored
         source="claude",
     )
     db.add(row)
