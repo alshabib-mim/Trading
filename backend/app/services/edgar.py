@@ -251,7 +251,7 @@ def _local(tag):
 
 
 def _latest_13f(cik):
-    data = _get(_SUBMISSIONS_URL.format(cik=cik), as_json=True)
+    data = _get(_SUBMISSIONS_URL.format(cik=int(cik)), as_json=True)
     recent = data.get("filings", {}).get("recent", {})
     forms = recent.get("form", [])
     accnos = recent.get("accessionNumber", [])
@@ -263,6 +263,7 @@ def _latest_13f(cik):
 
 
 def _info_table_url(cik, accession):
+    cik = int(cik)
     acc = accession.replace("-", "")
     idx = _get(f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/index.json", as_json=True)
     items = idx.get("directory", {}).get("item", [])
