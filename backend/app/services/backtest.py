@@ -117,6 +117,37 @@ def _as_dt(d):
     return datetime.datetime.fromisoformat(str(d))
 
 
+# --- alternate strategy: pullback-to-MA in the direction of the trend --------
+# Pre-committed standard params (NOT swept): trend = 50-SMA, pullback = 20-SMA.
+# This is a DAILY-timeframe concept, distinct from the live 1h engine.
+PULLBACK_TREND = 50
+PULLBACK_PULL = 20
+
+
+def add_pullback_smas(df, trend=PULLBACK_TREND, pull=PULLBACK_PULL):
+    df = df.copy()
+    df["SMA_PULL"] = df["Close"].rolling(pull).mean()
+    df["SMA_TREND"] = df["Close"].rolling(trend).mean()
+    return df
+
+
+def pullback_signal(df, i):
+    """Pullback-bounce in trend direction (causal; entry at Close[i]).
+    Uptrend  = Close > trend-SMA; the bar's LOW dipped to/below the pull-SMA
+    (pullback) but it CLOSED back above the pull-SMA (bounced, didn't break) -> long.
+    Symmetric short in a downtrend. Returns 'long'|'short'|None."""
+    row = df.iloc[i]
+    c, lo, hi = row["Close"], row["Low"], row["High"]
+    sp, st = row.get("SMA_PULL"), row.get("SMA_TREND")
+    if pd.isna(sp) or pd.isna(st):
+        return None
+    if c > st and lo <= sp and c > sp:
+        return "long"
+    if c < st and hi >= sp and c < sp:
+        return "short"
+    return None
+
+
 # --- per-asset simulation (mirrors risk.py sizing/stops/exits) ---------------
 
 def simulate(symbol, df, atype, signal_fn):

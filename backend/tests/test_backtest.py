@@ -107,6 +107,29 @@ def test_metrics():
     assert s["max_drawdown_pct"] == round(100/100250*100, 3)
 
 
+def test_pullback_long_in_uptrend():
+    # uptrend (close>trend), low dipped to pull MA, closed back above it -> long
+    df = pd.DataFrame([{"Close": 110, "Low": 99, "High": 111, "SMA_PULL": 100, "SMA_TREND": 90}])
+    assert bt.pullback_signal(df, 0) == "long"
+
+
+def test_pullback_no_signal_when_broke_through():
+    # uptrend but CLOSED below the pull MA (broke through, didn't bounce) -> no long
+    df = pd.DataFrame([{"Close": 98, "Low": 97, "High": 101, "SMA_PULL": 100, "SMA_TREND": 90}])
+    assert bt.pullback_signal(df, 0) is None
+
+
+def test_pullback_no_signal_without_pullback_touch():
+    # uptrend but low never reached the pull MA (no pullback) -> no entry
+    df = pd.DataFrame([{"Close": 110, "Low": 105, "High": 112, "SMA_PULL": 100, "SMA_TREND": 90}])
+    assert bt.pullback_signal(df, 0) is None
+
+
+def test_pullback_short_in_downtrend():
+    df = pd.DataFrame([{"Close": 90, "Low": 89, "High": 101, "SMA_PULL": 100, "SMA_TREND": 110}])
+    assert bt.pullback_signal(df, 0) == "short"
+
+
 def test_buy_and_hold():
     df = _price_df([{"Open": 100, "High": 100, "Low": 100, "Close": 100},
                     {"Open": 0, "High": 0, "Low": 0, "Close": 110}])
