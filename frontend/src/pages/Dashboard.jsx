@@ -66,6 +66,17 @@ function relTime(ts) {
   return diff < 0 ? `${mag} ago` : `in ${mag}`;
 }
 
+// Health: green = ran & wrote, grey = ran but nothing to write (HEALTHY),
+// red = last run errored (with reason). Distinct from the data-write time.
+function health(s) {
+  if (!s.enabled) return { cls: 'disabled', text: 'disabled' };
+  const h = s.health || {};
+  if (h.state === 'ok') return { cls: 'ok', text: `healthy · checked ${relTime(h.last_run_at) || '—'}` };
+  if (h.state === 'no_data') return { cls: 'nodata', text: `ran ${relTime(h.last_run_at) || '—'} · nothing new` };
+  if (h.state === 'error') return { cls: 'error', text: `failing — ${h.message || 'error'}`, msg: h.message };
+  return { cls: 'idle', text: 'not run yet' };
+}
+
 function StatusPanel({ status }) {
   if (!status) return null;
   const mk = status.markets || {};
@@ -82,16 +93,20 @@ function StatusPanel({ status }) {
       <div className="status-sources">
         <span className="status-hd">Data sources</span>
         {(status.sources || []).map((s) => {
+          const hi = health(s);
           const upd = parseUTC(s.last_updated);
+          const tip = [
+            upd ? `data updated ${upd.toLocaleString([], { timeZoneName: 'short' })}` : 'no data written yet',
+            s.health?.failing_since ? `failing since ${relTime(s.health.failing_since)}` : '',
+          ].filter(Boolean).join(' · ');
           return (
-            <div key={s.key} className={`status-src ${s.enabled ? '' : 'off'}`}>
+            <div key={s.key} className={`status-src h-${hi.cls}`}>
+              <span className={`hdot ${hi.cls}`} title={hi.msg || tip} />
               <span className="ss-label">{s.label}</span>
               <span className="ss-cadence">{s.cadence}</span>
-              <span className="ss-updated" title={upd ? upd.toLocaleString([], { timeZoneName: 'short' }) : ''}>
-                {s.last_updated ? `updated ${relTime(s.last_updated)}` : 'no data yet'}
-              </span>
+              <span className="ss-health" title={tip}>{hi.text}</span>
               <span className="ss-next">
-                {s.enabled ? (s.next_run ? `next ${relTime(s.next_run)}` : '—') : 'disabled'}
+                {s.enabled ? (s.next_run ? `next ${relTime(s.next_run)}` : '—') : ''}
               </span>
             </div>
           );

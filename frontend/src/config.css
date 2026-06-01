@@ -151,14 +151,20 @@ button:disabled { opacity: 0.6; cursor: default; }
 @media (max-width: 760px) { .status-sources { grid-template-columns: 1fr; } }
 .status-sources .status-hd { grid-column: 1 / -1; margin-bottom: 0.1rem; }
 .status-src {
-  display: grid; grid-template-columns: 7rem 5.5rem 1fr auto; gap: 0.5rem;
-  align-items: baseline; font-size: 0.82rem; padding: 0.12rem 0;
+  display: grid; grid-template-columns: 0.7rem 7rem 5rem 1fr auto; gap: 0.5rem;
+  align-items: center; font-size: 0.82rem; padding: 0.14rem 0;
 }
-.status-src.off { opacity: 0.5; }
+.status-src.h-disabled, .status-src.h-idle { opacity: 0.55; }
 .status-src .ss-label { font-weight: 600; }
 .status-src .ss-cadence { color: var(--muted); font-size: 0.74rem; }
-.status-src .ss-updated { color: var(--text); }
-.status-src .ss-next { color: var(--muted); text-align: right; }
+.status-src .ss-health { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-src.h-error .ss-health { color: #ef4444; }
+.status-src .ss-next { color: var(--muted); text-align: right; font-size: 0.74rem; }
+.hdot { width: 0.6rem; height: 0.6rem; border-radius: 50%; display: inline-block; background: #4b5563; }
+.hdot.ok { background: #22c55e; }
+.hdot.nodata { background: #6b7280; }
+.hdot.error { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+.hdot.disabled, .hdot.idle { background: #3a3f48; }
 
 .chat-page { max-width: 820px; }
 .chat-log {

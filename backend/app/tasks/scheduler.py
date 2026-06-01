@@ -1,4 +1,5 @@
 import datetime
+import logging
 from datetime import timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -12,14 +13,31 @@ from app.services.risk import run_risk_engine
 from app.services.news import run_sentiment
 from app.services.macro import run_macro
 from app.services.maintenance import cleanup_watch_rows
-from app.services import assets
+from app.services import assets, source_health
+
+_log = logging.getLogger("scheduler")
+
+
+def _run_technical(db):
+    """Per-symbol resilient (D2): one flaky symbol (e.g. yfinance hiccup) does NOT
+    fail the source — it stays healthy. Only a SYSTEMIC failure (every symbol
+    failed) raises and is recorded as 'error'."""
+    symbols = assets.enabled_symbols(db)
+    errors = []
+    for symbol in symbols:
+        try:
+            fetch_and_analyze(symbol, db)
+        except Exception as exc:  # noqa: BLE001 — isolate per-symbol failures
+            errors.append(f"{symbol}: {exc}")
+            _log.warning("technical: %s failed: %s", symbol, exc)
+    if symbols and len(errors) == len(symbols):
+        raise RuntimeError(f"all {len(symbols)} symbols failed (e.g. {errors[0]})")
 
 
 def update_technical_signals():
     db = SessionLocal()
     try:
-        for symbol in assets.enabled_symbols(db):
-            fetch_and_analyze(symbol, db)
+        source_health.run_with_health(db, "technical", lambda: _run_technical(db))
     finally:
         db.close()
 
@@ -29,7 +47,7 @@ def update_insider_signals():
     db = SessionLocal()
     try:
         stocks, _ = assets.split(db)
-        run_insider(stocks, db)
+        source_health.run_with_health(db, "insider", lambda: run_insider(stocks, db))
     finally:
         db.close()
 
@@ -39,7 +57,7 @@ def update_whale_signals():
     db = SessionLocal()
     try:
         _, crypto = assets.split(db)
-        run_whale(crypto, db)
+        source_health.run_with_health(db, "whale", lambda: run_whale(crypto, db))
     finally:
         db.close()
 
@@ -49,7 +67,7 @@ def update_institutional_signals():
     db = SessionLocal()
     try:
         stocks, _ = assets.split(db)
-        run_13f(stocks, db)
+        source_health.run_with_health(db, "institutional", lambda: run_13f(stocks, db))
     finally:
         db.close()
 
@@ -59,7 +77,7 @@ def update_sentiment_signals():
     db = SessionLocal()
     try:
         stocks, _ = assets.split(db)
-        run_sentiment(stocks, db)
+        source_health.run_with_health(db, "sentiment", lambda: run_sentiment(stocks, db))
     finally:
         db.close()
 
@@ -72,7 +90,9 @@ def update_macro_signals():
     # expensive web_search fetch fires at most once per slot.
     db = SessionLocal()
     try:
-        run_macro(db)
+        # Health for macro reflects the gate tick: 'no_data' between daily slots
+        # (ran, not due), 'ok' when it fetches, 'error' if the web_search call raises.
+        source_health.run_with_health(db, "macro", lambda: run_macro(db))
     finally:
         db.close()
 

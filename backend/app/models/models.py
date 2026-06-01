@@ -158,6 +158,23 @@ class RiskState(Base):
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 
+class SourceHealth(Base):
+    """Per-source last-run outcome — distinct from the data-write timestamp.
+    Three states: ok (ran + wrote), no_data (ran clean, nothing to write — HEALTHY),
+    error (run raised). failing_since/alerted edge-trigger the source_error alert
+    (alert once on failure, recovery note once when healthy again)."""
+    __tablename__ = "source_health"
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String, unique=True, index=True)  # technical, whale, insider, institutional, sentiment, macro
+    last_run_at = Column(DateTime, nullable=True)      # when the job last ran (any outcome)
+    last_state = Column(String, nullable=True)         # ok | no_data | error
+    last_message = Column(String, nullable=True)       # error reason (error state only)
+    last_ok_at = Column(DateTime, nullable=True)       # last run that wrote data
+    failing_since = Column(DateTime, nullable=True)    # start of the current failure episode (null = healthy)
+    alerted = Column(Boolean, default=False)           # source_error alert sent for this episode
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
 class ChatAction(Base):
     """Audit + lifecycle for every config change the chat assistant proposes.
     One row per proposal: created at propose time (status=proposed or rejected),

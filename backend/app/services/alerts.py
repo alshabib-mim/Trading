@@ -27,6 +27,7 @@ DEFAULT_EVENTS = {
     "position_opened": True,
     "exit_hit": True,
     "breaker": True,
+    "source_error": True,
 }
 EVENT_TYPES = tuple(DEFAULT_EVENTS.keys())
 
@@ -156,3 +157,19 @@ def breaker_fired(reasons, equity, db: Session):
         f"New positions are blocked until cleared."
     )
     return _emit("breaker", text, db)
+
+
+def source_error(source: str, message: str, db: Session):
+    """Fired once when a data source's run starts failing (edge-detected)."""
+    text = (
+        f"🔴 SOURCE ERROR\n"
+        f"{source} failed to run:\n{(message or 'unknown error')[:300]}"
+    )
+    return _emit("source_error", text, db)
+
+
+def source_recovered(source: str, db: Session):
+    """Fired once when a previously-failing source runs healthy again. Shares the
+    source_error toggle (off = silences both failure and recovery)."""
+    text = f"🟢 SOURCE RECOVERED\n{source} is running healthy again."
+    return _emit("source_error", text, db)

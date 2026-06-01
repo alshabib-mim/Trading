@@ -154,6 +154,7 @@ const EVENT_LABELS = {
   position_opened: 'Paper position opens',
   exit_hit: 'Stop / take-profit hits',
   breaker: 'Circuit breaker fires',
+  source_error: 'A data source fails (with recovery note)',
 };
 
 function AlertsCard() {
