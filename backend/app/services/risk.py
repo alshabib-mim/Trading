@@ -271,11 +271,31 @@ def run_risk_engine(db: Session, price_fn=None):
                 _cache[asset] = _latest_price(asset, db)
             return _cache[asset]
 
+    from app.services import alerts
+
     closed = manage_open_positions(db, cfg_map, price_fn=price_fn)
+    for t in closed:
+        if t.close_reason in ("stop", "target"):
+            alerts.exit_hit(t, db)
+
     equity, realized, unreal = compute_equity(db, capital, price_fn=price_fn)
     update_state(db, state, equity)
+
     halt = check_halt(db, cfg_map, equity, capital, state)
+    # Edge-trigger the breaker alert: fire once when a (new) halt engages, clear
+    # when it lifts — not every 5-min tick while halted.
+    halt_sig = ";".join(sorted(halt)) if halt else ""
+    if halt_sig and halt_sig != (state.halt_alerted or ""):
+        alerts.breaker_fired(halt, equity, db)
+        state.halt_alerted = halt_sig
+        db.commit()
+    elif not halt_sig and state.halt_alerted:
+        state.halt_alerted = None
+        db.commit()
+
     opened = open_new_positions(db, cfg_map, capital, halt, price_fn=price_fn)
+    for t in opened:
+        alerts.position_opened(t, db)
 
     return {
         "equity": round(equity, 2),

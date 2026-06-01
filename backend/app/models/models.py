@@ -154,6 +154,21 @@ class RiskState(Base):
     day_date = Column(String, nullable=True)        # YYYY-MM-DD of the current day baseline
     day_start_equity = Column(Float, nullable=True)
     manual_halt = Column(Boolean, default=False)    # owner-settable kill switch
+    halt_alerted = Column(String, nullable=True)    # signature of the last halt alerted (edge-trigger; alert once per episode)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
+class AlertConfig(Base):
+    """Single-row config for the outbound alerts channel (Telegram). Bot token and
+    chat id are AES-256-GCM encrypted at rest (same as source credentials); events
+    is a per-event-type enable map. Master `enabled` gates everything."""
+    __tablename__ = "alert_config"
+    id = Column(Integer, primary_key=True, index=True)
+    channel = Column(String, default="telegram")
+    enabled = Column(Boolean, default=False)              # master switch (ships off)
+    bot_token_encrypted = Column(String, nullable=True)
+    chat_id_encrypted = Column(String, nullable=True)
+    events = Column(JSON)  # {"signal_armed": true, "position_opened": true, "exit_hit": true, "breaker": true}
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 class BrokerAccount(Base):

@@ -171,6 +171,15 @@ def _news_reading(asset, db, cfg):
 def fuse_asset(asset, db: Session, now=None):
     now = now or datetime.datetime.utcnow()
 
+    # Prior latest row for this asset — used to detect the watch→pending edge so
+    # the "signal armed" alert fires once on arming, not every cycle while armed.
+    prev = (
+        db.query(TradingSignal)
+        .filter(TradingSignal.asset == asset)
+        .order_by(TradingSignal.timestamp.desc())
+        .first()
+    )
+
     tech = _technical_reading(asset, db, _cfg(db, "technical"), now)
     sent = _sentiment_reading(asset, db, _cfg(db, "sentiment"), now)
     inst = _institutional_reading(asset, db, _cfg(db, "institutional"), now)
@@ -278,6 +287,12 @@ def fuse_asset(asset, db: Session, now=None):
     )
     db.add(row)
     db.commit()
+
+    # Alert on the watch→pending edge only (never raises — alerts are defensive).
+    if armed and (prev is None or prev.status != "pending"):
+        from app.services import alerts
+        alerts.signal_armed(row, db)
+
     return row
 
 
