@@ -40,11 +40,15 @@ function dirClass(d) {
 }
 
 function fmtTime(ts) {
-  try {
-    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
+  if (ts == null) return '';
+  // The API sends naive UTC timestamps (no 'Z'/offset), which the browser would
+  // otherwise parse as LOCAL time — showing the raw UTC clock. Force UTC parsing,
+  // then render in the viewer's local zone WITH a zone label (e.g. "2:37 AM GMT+3").
+  let s = String(ts);
+  if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) s += 'Z';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
 }
 
 function EngineRow({ sig }) {
