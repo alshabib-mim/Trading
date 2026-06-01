@@ -1,7 +1,9 @@
+import datetime
 from datetime import timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.db.session import SessionLocal
+from app.tasks import schedules
 from app.services.technical_analysis import fetch_and_analyze
 from app.services.edgar import run_insider, run_13f
 from app.services.whale import run_whale
@@ -105,19 +107,37 @@ def cleanup_old_watch_rows():
 # time (the actual schedule, not an estimate). Set on start_scheduler().
 _scheduler = None
 
+# job id -> function (cron schedules live in schedules.CRON, on fixed UTC boundaries).
+JOBS = {
+    "technical": update_technical_signals,
+    "whale": update_whale_signals,
+    "macro": update_macro_signals,
+    "fusion": update_fused_signals,
+    "risk": update_risk_engine,
+    "sentiment": update_sentiment_signals,
+    "insider": update_insider_signals,
+    "institutional": update_institutional_signals,
+    "cleanup": cleanup_old_watch_rows,
+}
+
 
 def start_scheduler():
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(update_technical_signals, 'interval', minutes=15, id='technical', replace_existing=True)
-    scheduler.add_job(update_insider_signals, 'interval', hours=6, id='insider', replace_existing=True)
-    scheduler.add_job(update_whale_signals, 'interval', minutes=15, id='whale', replace_existing=True)
-    scheduler.add_job(update_institutional_signals, 'interval', hours=24, id='institutional', replace_existing=True)
-    scheduler.add_job(update_sentiment_signals, 'interval', hours=1, id='sentiment', replace_existing=True)
-    scheduler.add_job(update_macro_signals, 'interval', minutes=15, id='macro', replace_existing=True)
-    scheduler.add_job(update_fused_signals, 'interval', minutes=15, id='fusion', replace_existing=True)
-    scheduler.add_job(update_risk_engine, 'interval', minutes=5, id='risk', replace_existing=True)
-    scheduler.add_job(cleanup_old_watch_rows, 'interval', hours=24, id='cleanup', replace_existing=True)
+    # tz=UTC so cron fields are fixed UTC boundaries (deploy-independent).
+    scheduler = BackgroundScheduler(timezone="UTC")
+    for job_id, fn in JOBS.items():
+        scheduler.add_job(fn, 'cron', id=job_id, replace_existing=True, **schedules.CRON[job_id])
     scheduler.start()
+
+    # Run-on-startup for the FREE source(s) only — refresh immediately after a deploy
+    # without waiting for the next boundary. One-shot 'date' job a few seconds out so
+    # it runs in a worker thread instead of blocking app startup.
+    for job_id in schedules.RUN_ON_STARTUP:
+        scheduler.add_job(
+            JOBS[job_id], 'date',
+            run_date=datetime.datetime.now(timezone.utc) + datetime.timedelta(seconds=5),
+            id=f"{job_id}_startup", replace_existing=True,
+        )
+
     global _scheduler
     _scheduler = scheduler
     return scheduler
