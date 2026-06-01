@@ -304,6 +304,24 @@ def due_to_run(cfg: SourceConfig, now: datetime.datetime, last_ts) -> bool:
     return last_ts is None or last_ts < slot
 
 
+def next_fetch_at(cfg: SourceConfig, now: Optional[datetime.datetime] = None):
+    """The next actual macro fetch time (naive UTC) given run_times + the forex
+    weekend skip — i.e. the next scheduled slot strictly after `now` that, when
+    skip_forex_weekend is on, falls while the forex market is open. Pure schedule
+    calc (ignores enabled); returns None if no slot found in the next 9 days."""
+    now = now or datetime.datetime.utcnow()
+    opts = (cfg.options if cfg is not None and cfg.options else {}) or {}
+    skip_weekend = opts.get("skip_forex_weekend", True)
+    run_times = _run_times(opts)
+    for day_off in range(0, 9):
+        d = (now + datetime.timedelta(days=day_off)).date()
+        for (h, m) in run_times:
+            slot = datetime.datetime(d.year, d.month, d.day, h, m)
+            if slot > now and (not skip_weekend or forex_market_open(slot, opts)):
+                return slot
+    return None
+
+
 def run_macro(db: Session, now: Optional[datetime.datetime] = None, force: bool = False):
     """Scheduler entry point — called on a frequent tick. Fetches a fresh macro
     snapshot only when due (enabled + forex open + a new scheduled slot). force=True

@@ -1,3 +1,5 @@
+from datetime import timezone
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.db.session import SessionLocal
 from app.services.technical_analysis import fetch_and_analyze
@@ -99,16 +101,38 @@ def cleanup_old_watch_rows():
         db.close()
 
 
+# Live scheduler handle so the status endpoint can read each job's REAL next run
+# time (the actual schedule, not an estimate). Set on start_scheduler().
+_scheduler = None
+
+
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(update_technical_signals, 'interval', minutes=15)
-    scheduler.add_job(update_insider_signals, 'interval', hours=6)
-    scheduler.add_job(update_whale_signals, 'interval', minutes=15)
-    scheduler.add_job(update_institutional_signals, 'interval', hours=24)
-    scheduler.add_job(update_sentiment_signals, 'interval', hours=1)
-    scheduler.add_job(update_macro_signals, 'interval', minutes=15)
-    scheduler.add_job(update_fused_signals, 'interval', minutes=15)
-    scheduler.add_job(update_risk_engine, 'interval', minutes=5)
-    scheduler.add_job(cleanup_old_watch_rows, 'interval', hours=24)
+    scheduler.add_job(update_technical_signals, 'interval', minutes=15, id='technical', replace_existing=True)
+    scheduler.add_job(update_insider_signals, 'interval', hours=6, id='insider', replace_existing=True)
+    scheduler.add_job(update_whale_signals, 'interval', minutes=15, id='whale', replace_existing=True)
+    scheduler.add_job(update_institutional_signals, 'interval', hours=24, id='institutional', replace_existing=True)
+    scheduler.add_job(update_sentiment_signals, 'interval', hours=1, id='sentiment', replace_existing=True)
+    scheduler.add_job(update_macro_signals, 'interval', minutes=15, id='macro', replace_existing=True)
+    scheduler.add_job(update_fused_signals, 'interval', minutes=15, id='fusion', replace_existing=True)
+    scheduler.add_job(update_risk_engine, 'interval', minutes=5, id='risk', replace_existing=True)
+    scheduler.add_job(cleanup_old_watch_rows, 'interval', hours=24, id='cleanup', replace_existing=True)
     scheduler.start()
+    global _scheduler
+    _scheduler = scheduler
     return scheduler
+
+
+def next_run_for(job_id):
+    """The job's real next run time as a naive UTC datetime, or None. The macro
+    job is a 15-min gate tick — its meaningful next fetch is computed from
+    run_times in macro.next_fetch_at, not from this tick."""
+    if _scheduler is None:
+        return None
+    job = _scheduler.get_job(job_id)
+    if job is None or job.next_run_time is None:
+        return None
+    dt = job.next_run_time
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt

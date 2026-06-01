@@ -39,16 +39,66 @@ function dirClass(d) {
   return d === 'bullish' ? 'dir-bull' : d === 'bearish' ? 'dir-bear' : 'dir-none';
 }
 
-function fmtTime(ts) {
-  if (ts == null) return '';
-  // The API sends naive UTC timestamps (no 'Z'/offset), which the browser would
-  // otherwise parse as LOCAL time — showing the raw UTC clock. Force UTC parsing,
-  // then render in the viewer's local zone WITH a zone label (e.g. "2:37 AM GMT+3").
+// The API sends naive UTC timestamps (no 'Z'/offset), which the browser would
+// otherwise parse as LOCAL time. Force UTC parsing so everything renders in the
+// viewer's local zone (with a zone label), consistent across the dashboard.
+function parseUTC(ts) {
+  if (ts == null) return null;
   let s = String(ts);
   if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) s += 'Z';
   const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function fmtTime(ts) {
+  const d = parseUTC(ts);
+  return d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }) : '';
+}
+
+// "3 min ago" / "in 12 min" / "just now", relative to the viewer's clock.
+function relTime(ts) {
+  const d = parseUTC(ts);
+  if (!d) return null;
+  const diff = d.getTime() - Date.now();
+  if (Math.abs(diff) < 45000) return 'just now';
+  const mins = Math.round(Math.abs(diff) / 60000);
+  const mag = mins < 60 ? `${mins} min` : mins < 60 * 48 ? `${Math.round(mins / 60)} h` : `${Math.round(mins / 1440)} d`;
+  return diff < 0 ? `${mag} ago` : `in ${mag}`;
+}
+
+function StatusPanel({ status }) {
+  if (!status) return null;
+  const mk = status.markets || {};
+  return (
+    <section className="card status-card">
+      <div className="status-markets">
+        <span className="status-hd">Markets</span>
+        {['stock', 'crypto', 'forex'].map((k) => mk[k] && (
+          <span key={k} className={`mkt ${mk[k].open ? 'open' : 'closed'}`} title={mk[k].detail}>
+            {mk[k].label}: {mk[k].open ? 'OPEN' : 'CLOSED'}
+          </span>
+        ))}
+      </div>
+      <div className="status-sources">
+        <span className="status-hd">Data sources</span>
+        {(status.sources || []).map((s) => {
+          const upd = parseUTC(s.last_updated);
+          return (
+            <div key={s.key} className={`status-src ${s.enabled ? '' : 'off'}`}>
+              <span className="ss-label">{s.label}</span>
+              <span className="ss-cadence">{s.cadence}</span>
+              <span className="ss-updated" title={upd ? upd.toLocaleString([], { timeZoneName: 'short' }) : ''}>
+                {s.last_updated ? `updated ${relTime(s.last_updated)}` : 'no data yet'}
+              </span>
+              <span className="ss-next">
+                {s.enabled ? (s.next_run ? `next ${relTime(s.next_run)}` : '—') : 'disabled'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 function EngineRow({ sig }) {
@@ -164,21 +214,24 @@ export default function Dashboard() {
   const [signals, setSignals] = useState([]);
   const [trades, setTrades] = useState([]);
   const [news, setNews] = useState([]);
+  const [status, setStatus] = useState(null);
   const [err, setErr] = useState(null);
 
   useEffect(() => {
     let alive = true;
     const fetchData = async () => {
       try {
-        const [sigRes, trRes, newsRes] = await Promise.all([
+        const [sigRes, trRes, newsRes, statusRes] = await Promise.all([
           api.get('/signals/'),
           api.get('/trades/'),
           api.get('/news/'),
+          api.get('/status/'),
         ]);
         if (!alive) return;
         setSignals(sigRes.data);
         setTrades(trRes.data);
         setNews(newsRes.data);
+        setStatus(statusRes.data);
         setErr(null);
       } catch (e) {
         if (alive) setErr(e.response?.data?.detail || 'Failed to load');
@@ -237,6 +290,8 @@ export default function Dashboard() {
     <div className="page">
       <h1>AI Trading System Dashboard</h1>
       {err && <div className="error">{err}</div>}
+
+      <StatusPanel status={status} />
 
       <section className="card">
         <h2>Engine read — current <span className="muted small">({rows.length} assets)</span></h2>
