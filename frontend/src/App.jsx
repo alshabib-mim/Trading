@@ -15,6 +15,7 @@ import Config from './pages/Config';
 import Charts from './pages/Charts';
 import Risk from './pages/Risk';
 import Assets from './pages/Assets';
+import Chat from './pages/Chat';
 import './config.css';
 
 function Shell({ children, me, onLogout }) {
@@ -24,6 +25,7 @@ function Shell({ children, me, onLogout }) {
         <span className="brand">Trading</span>
         <Link to="/">Dashboard</Link>
         <Link to="/charts">Charts</Link>
+        {me?.role === 'owner' && <Link to="/chat">Assistant</Link>}
         {me?.role === 'owner' && <Link to="/risk">Risk</Link>}
         {me?.role === 'owner' && <Link to="/assets">Assets</Link>}
         {me?.role === 'owner' && <Link to="/config">Config</Link>}
@@ -95,6 +97,16 @@ function AppRoutes() {
               <Charts />
             </Shell>
           </Protected>
+        }
+      />
+      <Route
+        path="/chat"
+        element={
+          <OwnerOnly me={me}>
+            <Shell me={me} onLogout={logout}>
+              <Chat />
+            </Shell>
+          </OwnerOnly>
         }
       />
       <Route

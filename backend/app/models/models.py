@@ -158,6 +158,27 @@ class RiskState(Base):
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 
+class ChatAction(Base):
+    """Audit + lifecycle for every config change the chat assistant proposes.
+    One row per proposal: created at propose time (status=proposed or rejected),
+    transitions to applied/cancelled/stale on confirm. This IS the audit log
+    (who/what/when/before→after) AND the pending-action store (stale-write guard
+    compares the live value against `before_value` at confirm time)."""
+    __tablename__ = "chat_action"
+    id = Column(Integer, primary_key=True, index=True)
+    action_id = Column(String, unique=True, index=True)  # opaque id handed to the UI
+    username = Column(String, index=True)
+    target = Column(String)            # dotted path, e.g. risk_config.account.risk_per_trade_pct
+    label = Column(String, nullable=True)
+    before_value = Column(String, nullable=True)  # JSON-encoded snapshot at propose time
+    after_value = Column(String, nullable=True)   # JSON-encoded proposed/applied value
+    status = Column(String)            # proposed | applied | cancelled | rejected | stale | expired
+    reason = Column(String, nullable=True)        # rejection reason / stale note
+    risk_note = Column(String, nullable=True)     # e.g. "widens the stop — increases per-trade risk"
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+    resolved_at = Column(DateTime, nullable=True)
+
+
 class AlertConfig(Base):
     """Single-row config for the outbound alerts channel (Telegram). Bot token and
     chat id are AES-256-GCM encrypted at rest (same as source credentials); events
